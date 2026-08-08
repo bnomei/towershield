@@ -1,0 +1,24 @@
+[package]
+name = "shield-cloudflare"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Offline Cloudflare Ruleset Engine expression exporter for tower-http-shield."
+keywords = ["cloudflare", "waf", "security", "shield", "firewall"]
+categories = ["web-programming", "network-programming"]
+
+[features]
+default = ["serde"]
+serde = ["dep:serde", "dep:serde_json", "shield-core/serde"]
+regex = ["shield-core/regex"]
+
+[dependencies]
+shield-core = { path = "../shield-core" }
+thiserror = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
