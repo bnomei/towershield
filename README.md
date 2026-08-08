@@ -299,7 +299,4 @@ rule set and traffic shape before relying on a latency or throughput target.
 
 ## License
 
-Licensed under either of the following, at your option:
-
-- [Apache License, Version 2.0](LICENSE-APACHE)
-- [MIT License](LICENSE-MIT)
+Licensed under the [MIT License](LICENSE-MIT).

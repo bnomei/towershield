@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified project licensing from `MIT OR Apache-2.0` to MIT-only.
 - Built-in compiled rules are cached per process and cloned through shared
   rule tables; custom rule compilation reuses owned matcher strings.
 - Request inspection now borrows ordinary paths and lazily allocates only for
