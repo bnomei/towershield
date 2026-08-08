@@ -230,6 +230,22 @@ endpoints should review the built-ins and add precise allow rules before
 enabling the middleware. Normal production assets such as `/_next/static`,
 `/_next/image`, JavaScript bundles, and `/manifest.json` remain allowed.
 
+## Agent-ready protocol compatibility
+
+TowerShield keeps legitimate public discovery and protocol paths reachable,
+including `robots.txt`, OAuth/OIDC metadata, MCP server cards and endpoints,
+Agent Skills, A2A cards, API catalogs, and UCP/ACP commerce discovery. It also
+distinguishes public discovery from private configuration: for example,
+`/.well-known/mcp.json` remains allowed while `/.mcp.json` is blocked.
+
+These protocols are not all path-based. Web Bot Auth uses HTTP signatures;
+WebMCP is a browser API; x402 and MPP use HTTP `402`, headers, and payment
+payloads; and OAuth requires token and issuer validation. TowerShield does not
+claim to implement those layers. See the
+[agent protocol compatibility guide](AGENT_PROTOCOLS.md) for canonical paths,
+standards maturity, MCP Apps versus headless MCP, security boundaries, and the
+full compatibility matrix.
+
 ## Path inspection policy
 
 For every request, the Tower service derives an inspection path:
@@ -342,6 +358,7 @@ rule set and traffic shape before relying on a latency or throughput target.
 - [Changelog](CHANGELOG.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
+- [Agent protocol compatibility](AGENT_PROTOCOLS.md)
 - [Axum example](crates/shield-tower/examples/axum.rs)
 
 ## License
