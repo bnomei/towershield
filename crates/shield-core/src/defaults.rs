@@ -25,6 +25,9 @@
 //!   [`RuleGroup::JavaScript`] entries; production assets such as
 //!   `/_next/static`, `/_next/image`, and ordinary JS bundles are not blocked.
 //! - **`/metrics`, `/health`, `/admin`**: intentionally *not* blocked by default.
+//! - **Agent and API discovery**: public `/.well-known/*`, OAuth/OIDC, MCP,
+//!   Agent Skills, A2A, UCP, ACP, and payment-discovery paths are not blanket
+//!   blocked or allowed. Representative public paths have regression coverage.
 //! - **Overlapping app paths**: add a narrow [`Rule::allow`] exclusion.
 
 use std::sync::OnceLock;
@@ -1634,5 +1637,46 @@ mod tests {
         assert!(allowed(&rs, "/tools/shell/docs"));
         assert!(allowed(&rs, "/downloads/downloader/guide"));
         assert!(allowed(&rs, "/"));
+    }
+
+    #[test]
+    fn agent_protocol_discovery_paths_are_allowed() {
+        let rs = compiled();
+        let public_paths = [
+            "/robots.txt",
+            "/sitemap.xml",
+            "/llms.txt",
+            "/llms-full.txt",
+            "/auth.md",
+            "/openapi.json",
+            "/.well-known/http-message-signatures-directory",
+            "/.well-known/api-catalog",
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/oauth-authorization-server/tenant",
+            "/.well-known/openid-configuration",
+            "/tenant/.well-known/openid-configuration",
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/mcp.json",
+            "/.well-known/mcp",
+            "/.well-known/mcp/server-card.json",
+            "/.well-known/agent-skills/index.json",
+            "/.well-known/agent-skills/search/SKILL.md",
+            "/.well-known/agent-card.json",
+            "/.well-known/jwks.json",
+            "/.well-known/ucp",
+            "/.well-known/acp.json",
+            "/mcp",
+            "/oauth2/token",
+            "/agent/identity",
+            "/checkout_sessions",
+        ];
+
+        for path in public_paths {
+            assert!(allowed(&rs, path), "expected {path} to remain reachable");
+        }
+
+        #[cfg(feature = "regex")]
+        assert!(blocked(&rs, "/.well-known/.env"));
     }
 }

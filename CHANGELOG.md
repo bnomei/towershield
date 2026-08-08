@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented React, Next.js, and Vite coverage, production-path exclusions,
   path-only protection limits, and how to disable regex along with the coverage
   that removes.
+- Added an agent-protocol compatibility guide covering bot access control,
+  MCP and MCP Apps, Agent Skills, WebMCP, OAuth/OIDC discovery, API catalogs,
+  auth.md, x402, MPP, UCP, and ACP, with regression coverage for intentionally
+  public paths.
 
 ### Fixed
 
