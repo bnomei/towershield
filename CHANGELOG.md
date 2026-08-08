@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the dependency-minimal non-regex baseline.
 - Package publication metadata and docs.rs all-feature builds for all three
   crates.
+- Agent-readiness compatibility coverage that keeps public bot and protocol
+  discovery paths reachable, including `robots.txt`, `sitemap.xml`,
+  `llms.txt`, Web Bot Auth keys, API catalogs, OAuth/OIDC metadata, OAuth
+  Protected Resource metadata, MCP endpoints and server cards, Agent Skills,
+  A2A agent cards, and `auth.md`.
+- Commerce-protocol discovery coverage for MPP/OpenAPI, UCP, ACP, and common
+  checkout endpoints.
+- Regression protection distinguishing public discovery from private files:
+  `/.well-known/mcp.json` remains reachable, while `/.mcp.json` and secrets
+  such as `/.well-known/.env` remain blocked by the applicable default rules.
 
 ### Changed
 
@@ -42,9 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path-only protection limits, and how to disable regex along with the coverage
   that removes.
 - Added an agent-protocol compatibility guide covering bot access control,
-  MCP and MCP Apps, Agent Skills, WebMCP, OAuth/OIDC discovery, API catalogs,
-  auth.md, x402, MPP, UCP, and ACP, with regression coverage for intentionally
-  public paths.
+  headless MCP and MCP Apps, Agent Skills, A2A, WebMCP, OAuth/OIDC discovery,
+  API catalogs, auth.md, x402, MPP, UCP, and ACP.
+- Documented which protocols are path-based and which still require
+  application-level header, signature, token, browser-permission, or payment
+  validation; no blanket `/.well-known/**` allow rule is installed.
 
 ### Fixed
 
