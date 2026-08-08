@@ -5,25 +5,27 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 readme.workspace = true
-authors.workspace = true
+publish.workspace = true
 documentation = "https://docs.rs/towershield"
-description = "Tower Layer and Service for the TowerShield path denylist middleware."
-keywords = ["tower", "middleware", "security", "shield", "axum"]
-categories = ["web-programming", "network-programming"]
+description = "Tower middleware that blocks common vulnerability-scanner paths before they reach your application."
+keywords = ["tower", "axum", "middleware", "security", "waf"]
+categories = ["web-programming::http-server", "network-programming", "security"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [lib]
 name = "towershield"
 
 [features]
-default = ["tracing"]
+default = ["tracing", "regex"]
 tracing = ["dep:tracing"]
 regex = ["towershield-core/regex"]
 rayon = ["towershield-core/rayon"]
 
 [dependencies]
-towershield-core = { version = "0.1.0", path = "../shield-core" }
+towershield-core = { version = "0.1.1", path = "../shield-core", default-features = false }
 http = { workspace = true }
 tower-layer = { workspace = true }
 tower-service = { workspace = true }

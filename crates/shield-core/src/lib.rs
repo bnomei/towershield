@@ -32,7 +32,7 @@
 //! | Feature | Effect |
 //! |---|---|
 //! | `serde` (default) | Serialize/deserialize [`Rule`], [`RuleSet`], and matchers |
-//! | `regex` | Enable the `PathMatcher::Regex` operator and its compile path |
+//! | `regex` (default) | Enable regex matchers and the broader built-in rule tier |
 //! | `rayon` | Parallel compile of large regex-heavy rule sets (implies `regex`) |
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

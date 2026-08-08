@@ -73,6 +73,8 @@ jobs:
         features:
           - name: default
             args: ""
+          - name: no-default-features
+            args: "--no-default-features"
           - name: all-features
             args: "--all-features"
     steps:

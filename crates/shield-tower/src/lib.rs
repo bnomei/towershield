@@ -47,7 +47,7 @@
 //! | Feature | Effect |
 //! |---|---|
 //! | `tracing` (default) | Emit a debug span fields log line on each block |
-//! | `regex` | Forwarded to `towershield-core` for regex path matchers |
+//! | `regex` (default) | Regex matchers and the broader built-in rule tier |
 //! | `rayon` | Forwarded to `towershield-core` for parallel rule compile |
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

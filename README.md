@@ -205,7 +205,7 @@ module for the compatibility boundaries.
 
 ## Built-in rule groups
 
-The default rules cover 13 categories of high-confidence scanner probes:
+The default rules cover 14 categories of high-confidence scanner probes:
 
 | Group | Example paths |
 | --- | --- |
@@ -215,6 +215,7 @@ The default rules cover 13 categories of high-confidence scanner probes:
 | SSH keys and certificates | `/.ssh/`, `/id_rsa`, `*.pem`, `*.key` |
 | Build and deployment manifests | `/Dockerfile`, `/terraform.tfstate` |
 | Framework configuration | `/config/master.key`, `/settings.py`, `/appsettings.json` |
+| JavaScript, React, and Next.js tooling | `/package.json`, `/bun.lock`, `/.next/`, `/__nextjs_original-stack-frame`, `/@vite/client` |
 | WordPress | `/wp-login.php`, `/wp-admin/`, `/xmlrpc.php` |
 | Joomla | `/administrator/`, `/installation/` |
 | Drupal | `/sites/default/`, `/update.php` |
@@ -224,8 +225,10 @@ The default rules cover 13 categories of high-confidence scanner probes:
 | AI and developer-tool credentials | `/.codex/`, `/.cursor/`, `/.claude.json` |
 
 Applications serving WordPress, Joomla, Drupal, Magento, PHP, build manifests,
-or developer-tool files should review the built-ins and add precise allow
-rules before enabling the middleware.
+developer-tool files, or deliberately exposed Next.js/Vite development
+endpoints should review the built-ins and add precise allow rules before
+enabling the middleware. Normal production assets such as `/_next/static`,
+`/_next/image`, JavaScript bundles, and `/manifest.json` remain allowed.
 
 ## Path inspection policy
 
@@ -256,6 +259,13 @@ This project does not provide:
 - Protection from novel obfuscation, targeted reconnaissance, or
   vulnerabilities in allowed application routes.
 
+The JavaScript rules reduce exposed-file and development-endpoint probing;
+they are not substitutes for framework updates. In particular, path-only
+filtering cannot mitigate Next.js middleware-header bypasses such as
+[CVE-2025-29927](https://github.com/vercel/next.js/security/advisories/GHSA-f82v-jwr5-mffw)
+or attacker-controlled React Server Components protocol payloads such as
+[CVE-2025-66478](https://nextjs.org/blog/CVE-2025-66478).
+
 ## Cargo features
 
 Features are defined per crate:
@@ -263,14 +273,49 @@ Features are defined per crate:
 | Crate | Feature | Default | Purpose |
 | --- | --- | --- | --- |
 | `towershield-core` | `serde` | Yes | Serialize and deserialize rules with Serde, JSON, and TOML. |
-| `towershield-core` | `regex` | No | Enable `PathMatcher::Regex`. |
+| `towershield-core` | `regex` | Yes | Enable regex matchers and 16 broader built-in rules. |
 | `towershield-core` | `rayon` | No | Enable regex support and parallelize compilation of large regex-heavy custom rule sets. |
 | `towershield` | `tracing` | Yes | Emit structured debug events for blocked requests. |
-| `towershield` | `regex` | No | Enable `PathMatcher::Regex` through the core crate. |
+| `towershield` | `regex` | Yes | Enable regex matchers and the broader built-in rule tier. |
 | `towershield` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
 | `towershield-cloudflare` | `serde` | Yes | Serialize Rulesets API output as JSON. |
-| `towershield-cloudflare` | `regex` | No | Export regex matchers and enable `towershield-core/regex`. |
+| `towershield-cloudflare` | `regex` | Yes | Export regex matchers and include the broader built-in rule tier. |
 | `towershield-cloudflare` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
+
+### Disabling regex
+
+Regex support is on by default because it materially improves the built-in
+coverage. To remove the regex dependency from the Tower middleware:
+
+```toml
+towershield = { version = "0.1", default-features = false, features = ["tracing"] }
+```
+
+For `towershield-core` or `towershield-cloudflare`, re-enable `serde` explicitly
+if you still need serialization:
+
+```toml
+towershield-core = { version = "0.1", default-features = false, features = ["serde"] }
+towershield-cloudflare = { version = "0.1", default-features = false, features = ["serde"] }
+```
+
+This does **not** disable TowerShield. The conservative exact, prefix, suffix,
+segment, contains, and wildcard baseline remains. It does remove 16 expansion
+rules, so nested environment and credential files, nested package manifests and
+framework configs, nested CMS installations, PHP shell filenames, debug paths,
+and AI-tool metadata receive substantially less coverage. For example,
+`/package-lock.json` remains blocked while `/frontend/package-lock.json` is no
+longer caught by the built-in set.
+
+Cargo features are additive, so another dependency can re-enable regex. Check
+the resolved graph with:
+
+```console
+cargo tree -e features -i towershield-core
+```
+
+The Cloudflare exporter emits diagnostics and skips regex rules when the
+selected Cloudflare plan does not support the `matches` operator.
 
 ## Performance model
 
@@ -301,4 +346,4 @@ rule set and traffic shape before relying on a latency or throughput target.
 
 ## License
 
-Licensed under the [MIT License](LICENSE-MIT).
+Licensed under the [MIT License](LICENSE).

@@ -6,15 +6,24 @@
 //! template through [`DEFAULT_RULES`] (clone + customise, or take the process
 //! compiled form).
 //!
+//! With the default-on `regex` feature, the set also includes broader rules
+//! for nested sensitive files, framework installations, and filename
+//! families. Disabling default features omits that expansion tier while
+//! retaining the exact, prefix, suffix, segment, contains, and wildcard rules.
+//!
 //! # Versioning policy
 //!
-//! Built-in content follows crate semver: **adding** a rule is a minor bump
-//! (more paths may block); **removing** or weakening a match is a major bump.
+//! Before 1.0, built-in rule changes may ship in patch releases while the set
+//! is being established. After 1.0, **adding** a rule is a minor bump (more
+//! paths may block); **removing** or weakening a match is a major bump.
 //!
 //! # False-positive guidance
 //!
 //! - **WordPress / Joomla / Drupal / Magento / PHP apps**: drop or disable the
 //!   matching [`RuleGroup`] entries before compile.
+//! - **Deliberately exposed Next.js / Vite development servers**: disable the
+//!   [`RuleGroup::JavaScript`] entries; production assets such as
+//!   `/_next/static`, `/_next/image`, and ordinary JS bundles are not blocked.
 //! - **`/metrics`, `/health`, `/admin`**: intentionally *not* blocked by default.
 //! - **Overlapping app paths**: add a narrow [`Rule::allow`] exclusion.
 
@@ -46,6 +55,13 @@ macro_rules! prefix {
 macro_rules! suffix {
     ($p:expr) => {
         PathMatcher::Suffix($p.into())
+    };
+}
+
+#[cfg(feature = "regex")]
+macro_rules! regex {
+    ($p:expr) => {
+        PathMatcher::Regex($p.into())
     };
 }
 
@@ -615,7 +631,248 @@ fn build_default_rules() -> RuleSet {
             "Block wp-config.php backup variants",
             prefix!("/wp-config.php.")
         ),
-        // ── Group 7: WordPress ───────────────────────────────────────────────
+        // ── Group 7: JavaScript / React / Next.js tooling ───────────────────
+        deny!(
+            "js.package_json",
+            RuleGroup::JavaScript,
+            "Block package.json disclosure",
+            exact!("/package.json")
+        ),
+        deny!(
+            "js.package_lock",
+            RuleGroup::JavaScript,
+            "Block package-lock.json disclosure",
+            exact!("/package-lock.json")
+        ),
+        deny!(
+            "js.npm_shrinkwrap",
+            RuleGroup::JavaScript,
+            "Block npm-shrinkwrap.json disclosure",
+            exact!("/npm-shrinkwrap.json")
+        ),
+        deny!(
+            "js.yarn_lock",
+            RuleGroup::JavaScript,
+            "Block yarn.lock disclosure",
+            exact!("/yarn.lock")
+        ),
+        deny!(
+            "js.pnpm_lock",
+            RuleGroup::JavaScript,
+            "Block pnpm-lock.yaml disclosure",
+            exact!("/pnpm-lock.yaml")
+        ),
+        deny!(
+            "js.bun_lock",
+            RuleGroup::JavaScript,
+            "Block Bun text lockfile disclosure",
+            exact!("/bun.lock")
+        ),
+        deny!(
+            "js.bun_lockb",
+            RuleGroup::JavaScript,
+            "Block legacy Bun binary lockfile disclosure",
+            exact!("/bun.lockb")
+        ),
+        deny!(
+            "js.npmignore",
+            RuleGroup::JavaScript,
+            "Block .npmignore disclosure",
+            exact!("/.npmignore")
+        ),
+        deny!(
+            "js.yarn_integrity",
+            RuleGroup::JavaScript,
+            "Block Yarn integrity metadata",
+            exact!("/.yarn-integrity")
+        ),
+        deny!(
+            "js.node_modules_prefix",
+            RuleGroup::JavaScript,
+            "Block direct node_modules access",
+            prefix!("/node_modules/")
+        ),
+        deny!(
+            "js.npm_debug_log",
+            RuleGroup::JavaScript,
+            "Block npm debug log disclosure",
+            exact!("/npm-debug.log")
+        ),
+        deny!(
+            "js.npm_debug_log_assets",
+            RuleGroup::JavaScript,
+            "Block npm debug log under assets",
+            exact!("/assets/npm-debug.log")
+        ),
+        deny!(
+            "js.jsconfig",
+            RuleGroup::JavaScript,
+            "Block jsconfig.json disclosure",
+            exact!("/jsconfig.json")
+        ),
+        deny!(
+            "js.tsconfig",
+            RuleGroup::JavaScript,
+            "Block tsconfig.json disclosure",
+            exact!("/tsconfig.json")
+        ),
+        deny!(
+            "js.babel_config_js",
+            RuleGroup::JavaScript,
+            "Block Babel JavaScript configuration",
+            exact!("/babel.config.js")
+        ),
+        deny!(
+            "js.babel_config_cjs",
+            RuleGroup::JavaScript,
+            "Block Babel CommonJS configuration",
+            exact!("/babel.config.cjs")
+        ),
+        deny!(
+            "js.babel_config_mjs",
+            RuleGroup::JavaScript,
+            "Block Babel ESM configuration",
+            exact!("/babel.config.mjs")
+        ),
+        deny!(
+            "js.next_config_js",
+            RuleGroup::JavaScript,
+            "Block Next.js JavaScript configuration",
+            exact!("/next.config.js")
+        ),
+        deny!(
+            "js.next_config_cjs",
+            RuleGroup::JavaScript,
+            "Block Next.js CommonJS configuration",
+            exact!("/next.config.cjs")
+        ),
+        deny!(
+            "js.next_config_mjs",
+            RuleGroup::JavaScript,
+            "Block Next.js ESM configuration",
+            exact!("/next.config.mjs")
+        ),
+        deny!(
+            "js.next_config_ts",
+            RuleGroup::JavaScript,
+            "Block Next.js TypeScript configuration",
+            exact!("/next.config.ts")
+        ),
+        deny!(
+            "js.next_env_types",
+            RuleGroup::JavaScript,
+            "Block Next.js generated type declarations",
+            exact!("/next-env.d.ts")
+        ),
+        deny!(
+            "js.next_build_prefix",
+            RuleGroup::JavaScript,
+            "Block internal Next.js build output",
+            prefix!("/.next/")
+        ),
+        deny!(
+            "js.next_original_stack_frame",
+            RuleGroup::JavaScript,
+            "Block Next.js development stack-frame endpoint",
+            exact!("/__nextjs_original-stack-frame")
+        ),
+        deny!(
+            "js.next_launch_editor",
+            RuleGroup::JavaScript,
+            "Block Next.js development editor endpoint",
+            exact!("/__nextjs_launch-editor")
+        ),
+        deny!(
+            "js.next_webpack_hmr",
+            RuleGroup::JavaScript,
+            "Block Next.js development HMR endpoint",
+            exact!("/_next/webpack-hmr")
+        ),
+        deny!(
+            "js.next_dev_mcp",
+            RuleGroup::JavaScript,
+            "Block Next.js development MCP endpoint",
+            exact!("/_next/mcp")
+        ),
+        deny!(
+            "js.vite_config_js",
+            RuleGroup::JavaScript,
+            "Block Vite JavaScript configuration",
+            exact!("/vite.config.js")
+        ),
+        deny!(
+            "js.vite_config_ts",
+            RuleGroup::JavaScript,
+            "Block Vite TypeScript configuration",
+            exact!("/vite.config.ts")
+        ),
+        deny!(
+            "js.vite_config_mjs",
+            RuleGroup::JavaScript,
+            "Block Vite ESM configuration",
+            exact!("/vite.config.mjs")
+        ),
+        deny!(
+            "js.vite_config_mts",
+            RuleGroup::JavaScript,
+            "Block Vite ESM TypeScript configuration",
+            exact!("/vite.config.mts")
+        ),
+        deny!(
+            "js.vite_config_cjs",
+            RuleGroup::JavaScript,
+            "Block Vite CommonJS configuration",
+            exact!("/vite.config.cjs")
+        ),
+        deny!(
+            "js.vite_config_cts",
+            RuleGroup::JavaScript,
+            "Block Vite CommonJS TypeScript configuration",
+            exact!("/vite.config.cts")
+        ),
+        deny!(
+            "js.vite_client",
+            RuleGroup::JavaScript,
+            "Block Vite development client",
+            exact!("/@vite/client")
+        ),
+        deny!(
+            "js.vite_react_refresh",
+            RuleGroup::JavaScript,
+            "Block Vite React Fast Refresh runtime",
+            exact!("/@react-refresh")
+        ),
+        deny!(
+            "js.vite_fs_prefix",
+            RuleGroup::JavaScript,
+            "Block Vite development filesystem access",
+            prefix!("/@fs/")
+        ),
+        deny!(
+            "js.webpack_config_js",
+            RuleGroup::JavaScript,
+            "Block webpack JavaScript configuration",
+            exact!("/webpack.config.js")
+        ),
+        deny!(
+            "js.webpack_config_ts",
+            RuleGroup::JavaScript,
+            "Block webpack TypeScript configuration",
+            exact!("/webpack.config.ts")
+        ),
+        deny!(
+            "js.webpack_config_cjs",
+            RuleGroup::JavaScript,
+            "Block webpack CommonJS configuration",
+            exact!("/webpack.config.cjs")
+        ),
+        deny!(
+            "js.webpack_config_mjs",
+            RuleGroup::JavaScript,
+            "Block webpack ESM configuration",
+            exact!("/webpack.config.mjs")
+        ),
+        // ── Group 8: WordPress ───────────────────────────────────────────────
         deny!(
             "wp.login",
             RuleGroup::WordPress,
@@ -670,7 +927,7 @@ fn build_default_rules() -> RuleSet {
             "Block WordPress license.txt",
             exact!("/license.txt")
         ),
-        // ── Group 8: Joomla ──────────────────────────────────────────────────
+        // ── Group 9: Joomla ──────────────────────────────────────────────────
         deny!(
             "joomla.administrator",
             RuleGroup::Joomla,
@@ -695,7 +952,7 @@ fn build_default_rules() -> RuleSet {
             "Block Joomla modules",
             prefix!("/modules/")
         ),
-        // ── Group 9: Drupal ──────────────────────────────────────────────────
+        // ── Group 10: Drupal ─────────────────────────────────────────────────
         deny!(
             "drupal.sites_default",
             RuleGroup::Drupal,
@@ -720,7 +977,7 @@ fn build_default_rules() -> RuleSet {
             "Block Drupal cron.php",
             exact!("/cron.php")
         ),
-        // ── Group 10: Magento ────────────────────────────────────────────────
+        // ── Group 11: Magento ────────────────────────────────────────────────
         deny!(
             "magento.admin_prefix",
             RuleGroup::Magento,
@@ -751,7 +1008,7 @@ fn build_default_rules() -> RuleSet {
             "Block Magento var exports",
             prefix!("/var/export/")
         ),
-        // ── Group 11: PHP web-shell probes ───────────────────────────────────
+        // ── Group 12: PHP web-shell probes ───────────────────────────────────
         // A small, high-confidence set; applications can extend via custom rules.
         deny!(
             "phpshell.c99",
@@ -807,7 +1064,7 @@ fn build_default_rules() -> RuleSet {
             "Block wso shell",
             exact!("/wso.php")
         ),
-        // ── Group 12: Debug, profiler, actuator, server-status ────────────────
+        // ── Group 13: Debug, profiler, actuator, server-status ────────────────
         deny!(
             "debug.phpinfo_path",
             RuleGroup::Debug,
@@ -916,7 +1173,7 @@ fn build_default_rules() -> RuleSet {
             "Block ASP.NET trace diagnostics",
             exact!("/trace.axd")
         ),
-        // ── Group 13: AI and developer-tool credentials ──────────────────────
+        // ── Group 14: AI and developer-tool credentials ──────────────────────
         deny!(
             "ai.codex_config",
             RuleGroup::AiTools,
@@ -990,6 +1247,113 @@ fn build_default_rules() -> RuleSet {
             prefix!("/.claude/")
         ),
     ];
+
+    // Broader nested-path and filename-family coverage. Keeping these rules
+    // behind the default-on `regex` feature gives dependency-minimal builds a
+    // smaller rule set while retaining the exact/prefix baseline above.
+    #[cfg(feature = "regex")]
+    let rules = {
+        let mut rules = rules;
+        rules.extend([
+        deny!(
+            "regex.secrets_nested",
+            RuleGroup::Secrets,
+            "Block nested secret dotfiles and environment variants",
+            regex!(r"(?:^|/)\.(?:env(?:\.[A-Za-z0-9._-]+)?|npmrc|yarnrc|pypirc|netrc|pgpass|htpasswd|git-credentials)$")
+        ),
+        deny!(
+            "regex.source_control_nested",
+            RuleGroup::SourceControl,
+            "Block nested source-control metadata",
+            regex!(r"(?:^|/)\.(?:git/(?:HEAD|config|index)|svn/(?:entries|wc\.db)|hg/hgrc)$")
+        ),
+        deny!(
+            "regex.cloud_credentials_nested",
+            RuleGroup::CloudCredentials,
+            "Block nested cloud credential files",
+            regex!(r"(?:^|/)(?:\.aws/(?:credentials|config)|\.config/gcloud/(?:credentials\.db|access_tokens\.db)|gcp-credentials\.json|service-account\.json)$")
+        ),
+        deny!(
+            "regex.ssh_keys_nested",
+            RuleGroup::SshKeys,
+            "Block nested SSH identity and trust files",
+            regex!(r"(?:^|/)(?:id_(?:rsa|dsa|ecdsa|ed25519)|authorized_keys|known_hosts)$")
+        ),
+        deny!(
+            "regex.build_manifests_nested",
+            RuleGroup::BuildManifests,
+            "Block nested build and deployment manifests",
+            regex!(r"(?:^|/)(?:terraform\.tfstate(?:\.[A-Za-z0-9._-]+)?|terraform\.tfvars|Dockerfile|docker-compose\.ya?ml)$")
+        ),
+        deny!(
+            "regex.framework_backups_nested",
+            RuleGroup::FrameworkConfig,
+            "Block nested PHP framework configuration backups",
+            regex!(r"(?:^|/)(?:wp-config|config|settings)\.php\.(?:bak|backup|old|orig|save|swp|tmp)$")
+        ),
+        deny!(
+            "regex.javascript_manifests_nested",
+            RuleGroup::JavaScript,
+            "Block nested JavaScript package and compiler manifests",
+            regex!(r"(?:^|/)(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|jsconfig\.json|tsconfig\.json)$")
+        ),
+        deny!(
+            "regex.javascript_configs_nested",
+            RuleGroup::JavaScript,
+            "Block nested JavaScript framework and bundler configuration",
+            regex!(r"(?:^|/)(?:next|vite|webpack|babel)\.config\.(?:js|cjs|mjs|ts|cts|mts)$")
+        ),
+        deny!(
+            "regex.javascript_debug_nested",
+            RuleGroup::JavaScript,
+            "Block nested package-manager debug metadata",
+            regex!(r"(?:^|/)(?:npm-debug\.log(?:\.[0-9]+)?|\.yarn-integrity)$")
+        ),
+        deny!(
+            "regex.wordpress_nested",
+            RuleGroup::WordPress,
+            "Block WordPress probes under nested installations",
+            regex!(r"(?:^|/)wp-(?:login\.php|admin(?:/|$)|content/plugins(?:/|$)|includes(?:/|$))")
+        ),
+        deny!(
+            "regex.joomla_nested",
+            RuleGroup::Joomla,
+            "Block Joomla probes under nested installations",
+            regex!(r"(?:^|/)(?:administrator|installation)(?:/|$)")
+        ),
+        deny!(
+            "regex.drupal_nested",
+            RuleGroup::Drupal,
+            "Block Drupal sites/default probes under nested installations",
+            regex!(r"(?:^|/)sites/default(?:/|$)")
+        ),
+        deny!(
+            "regex.magento_nested",
+            RuleGroup::Magento,
+            "Block Magento probes under nested installations",
+            regex!(r"(?:^|/)(?:downloader|shell|var/export)(?:/|$)")
+        ),
+        deny!(
+            "regex.php_shell_nested",
+            RuleGroup::PhpShell,
+            "Block common PHP web-shell filenames at any depth",
+            regex!(r"(?:^|/)(?:c99|r57|phpinfo|shell|cmd|eval|b374k|wso)\.php$")
+        ),
+        deny!(
+            "regex.debug_nested",
+            RuleGroup::Debug,
+            "Block common debug endpoints under nested routes",
+            regex!(r"(?:^|/)(?:debug/pprof|_debug_toolbar|__clockwork|actuator)(?:/|$)")
+        ),
+        deny!(
+            "regex.ai_tools_nested",
+            RuleGroup::AiTools,
+            "Block nested AI developer-tool metadata",
+            regex!(r"(?:^|/)\.(?:codex|cursor|claude|continue|copilot)(?:/|$)")
+        ),
+        ]);
+        rules
+    };
 
     rules.into_iter().fold(RuleSet::new(), |rs, r| rs.push(r))
 }
@@ -1119,6 +1483,60 @@ mod tests {
         assert!(blocked(&rs, "/gradle.properties"));
         assert!(blocked(&rs, "/config/runtime.exs"));
         assert!(blocked(&rs, "/storage/logs/laravel.log"));
+    }
+
+    #[test]
+    fn javascript_group() {
+        let rs = compiled();
+        assert!(blocked(&rs, "/package.json"));
+        assert!(blocked(&rs, "/package-lock.json"));
+        assert!(blocked(&rs, "/pnpm-lock.yaml"));
+        assert!(blocked(&rs, "/bun.lock"));
+        assert!(blocked(&rs, "/bun.lockb"));
+        assert!(blocked(&rs, "/node_modules/.yarn-integrity"));
+        assert!(blocked(&rs, "/next.config.mjs"));
+        assert!(blocked(&rs, "/.next/server/app-paths-manifest.json"));
+        assert!(blocked(&rs, "/__nextjs_original-stack-frame"));
+        assert!(blocked(&rs, "/_next/mcp"));
+        assert!(blocked(&rs, "/@vite/client"));
+        assert!(blocked(&rs, "/@fs/etc/passwd"));
+        assert!(blocked(&rs, "/webpack.config.js"));
+
+        assert!(allowed(&rs, "/_next/static/chunks/app.js"));
+        assert!(allowed(&rs, "/_next/image"));
+        assert!(allowed(&rs, "/assets/app.js"));
+        assert!(allowed(&rs, "/manifest.json"));
+    }
+
+    #[cfg(feature = "regex")]
+    #[test]
+    fn regex_expansion_blocks_nested_and_variant_probes() {
+        let rs = compiled();
+        assert!(blocked(&rs, "/app/.env.staging"));
+        assert!(blocked(&rs, "/frontend/package-lock.json"));
+        assert!(blocked(&rs, "/frontend/bun.lock"));
+        assert!(blocked(&rs, "/legacy/bun.lockb"));
+        assert!(blocked(&rs, "/frontend/vite.config.ts"));
+        assert!(blocked(&rs, "/blog/wp-login.php"));
+        assert!(blocked(&rs, "/public/c99.php"));
+        assert!(blocked(&rs, "/workspace/.cursor/mcp.json"));
+    }
+
+    #[cfg(not(feature = "regex"))]
+    #[test]
+    fn disabling_regex_omits_expansion_but_keeps_baseline() {
+        let rs = compiled();
+        assert!(blocked(&rs, "/.env.production"));
+        assert!(blocked(&rs, "/package-lock.json"));
+        assert!(blocked(&rs, "/bun.lock"));
+        assert!(blocked(&rs, "/bun.lockb"));
+        assert!(blocked(&rs, "/wp-login.php"));
+
+        assert!(allowed(&rs, "/app/.env.staging"));
+        assert!(allowed(&rs, "/frontend/package-lock.json"));
+        assert!(allowed(&rs, "/frontend/bun.lock"));
+        assert!(allowed(&rs, "/legacy/bun.lockb"));
+        assert!(allowed(&rs, "/blog/wp-login.php"));
     }
 
     #[test]

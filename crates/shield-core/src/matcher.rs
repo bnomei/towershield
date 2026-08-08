@@ -21,9 +21,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Regex
 ///
-/// Requires the `regex` Cargo feature. The pattern is applied to the
-/// inspection path string (not re-anchored by this crate beyond what the
-/// pattern itself specifies).
+/// Available through the default-on `regex` Cargo feature. The pattern is
+/// applied to the inspection path string (not re-anchored by this crate beyond
+/// what the pattern itself specifies).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
@@ -43,7 +43,7 @@ pub enum PathMatcher {
     Contains(String),
     /// Glob-style pattern: `*` stays in one segment; `**` crosses `/`.
     Wildcard(String),
-    /// Regular-expression match (requires the `regex` feature).
+    /// Regular-expression match (available with the default `regex` feature).
     #[cfg(feature = "regex")]
     Regex(String),
 }

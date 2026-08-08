@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-08
+
+### Added
+
+- A JavaScript ecosystem rule group covering exposed package metadata; npm,
+  Yarn, pnpm, and Bun lockfiles; Next.js build and development endpoints; Vite
+  development endpoints; and common Next.js, Vite, webpack, and Babel
+  configuration files.
+- A default-on regex expansion tier with 16 broader rules for nested sensitive
+  files, JavaScript configs, CMS installations, debug paths, and related probe
+  families.
+- Feature-gated tests proving the difference between the default regex rule set
+  and the dependency-minimal non-regex baseline.
+- Package publication metadata and docs.rs all-feature builds for all three
+  crates.
+
+### Changed
+
+- Enabled regex support by default in `towershield`, `towershield-core`, and
+  `towershield-cloudflare`; disabling default features retains the conservative
+  exact, prefix, suffix, segment, contains, and wildcard rules.
+- Made adapter crates opt out of implicit `towershield-core` defaults and
+  forward their own features explicitly, so `--no-default-features` behaves as
+  documented throughout the workspace.
+- Expanded CI tests to cover the no-default-features configuration.
+- Refined crates.io descriptions, keywords, and categories for each package.
+
+### Documentation
+
+- Documented React, Next.js, and Vite coverage, production-path exclusions,
+  path-only protection limits, and how to disable regex along with the coverage
+  that removes.
+
+## [0.1.0] - 2026-08-08
+
 ### Added
 
 - `towershield-core`: portable rule model (`Rule`, `RuleSet`, `PathMatcher`,
@@ -56,12 +91,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Built-in rule versioning policy
 
 Adding a new built-in rule may cause a previously-allowed path to be blocked.
-This is a **behavioural change** and is treated as follows:
+This is a **behavioural change**. Before 1.0, the built-in set is still being
+established and these changes may ship in patch releases; applications should
+review the changelog before upgrading. After 1.0, changes are treated as
+follows:
 
-- **Adding a built-in rule**: minor version bump (`0.x.0` → `0.x+1.0`).
+- **Adding a built-in rule**: minor version bump.
 - **Removing or weakening a built-in rule**: major version bump.
 - **Correcting a rule that was incorrectly blocking a non-scanner path**:
   treated as a bug fix (patch version).
 
 Applications that are concerned about unexpected blocking from new rules
-should pin the minor version.
+should pin an exact version and review rule changes before upgrading.
+
+[Unreleased]: https://github.com/bnomei/towershield/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/bnomei/towershield/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/bnomei/towershield/releases/tag/v0.1.0

@@ -28,7 +28,7 @@
 //! | Feature | Effect |
 //! |---|---|
 //! | `serde` (default) | JSON pretty-print of Rulesets API payloads |
-//! | `regex` | Export `PathMatcher::Regex` as Cloudflare `matches` |
+//! | `regex` (default) | Export regex matchers and include the broader rule tier |
 //! | `rayon` | Forwarded to `towershield-core` (compile-side only) |
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

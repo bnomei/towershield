@@ -5,19 +5,21 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 readme.workspace = true
-authors.workspace = true
+publish.workspace = true
 documentation = "https://docs.rs/towershield-core"
-description = "Portable path-shield rule model: rules, matching, serialization."
-keywords = ["security", "shield", "middleware", "http", "firewall"]
-categories = ["web-programming", "network-programming"]
+description = "Portable rules and matchers for blocking common vulnerability-scanner paths."
+keywords = ["security", "waf", "denylist", "firewall", "http"]
+categories = ["web-programming", "network-programming", "security"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [lib]
 name = "towershield_core"
 
 [features]
-default = ["serde"]
+default = ["serde", "regex"]
 serde = ["dep:serde", "dep:serde_json", "dep:toml"]
 regex = ["dep:regex"]
 rayon = ["dep:rayon", "regex"]

@@ -60,6 +60,9 @@ pub enum RuleGroup {
     BuildManifests,
     /// Framework config that often leaks credentials or internals.
     FrameworkConfig,
+    /// JavaScript ecosystem manifests, build config, and dev-only endpoints.
+    #[cfg_attr(feature = "serde", serde(rename = "javascript"))]
+    JavaScript,
     /// WordPress admin, content, and login probe paths.
     WordPress,
     /// Joomla administrator and install probe paths.
@@ -88,6 +91,7 @@ impl fmt::Display for RuleGroup {
             RuleGroup::SshKeys => f.write_str("ssh_keys"),
             RuleGroup::BuildManifests => f.write_str("build_manifests"),
             RuleGroup::FrameworkConfig => f.write_str("framework_config"),
+            RuleGroup::JavaScript => f.write_str("javascript"),
             RuleGroup::WordPress => f.write_str("wordpress"),
             RuleGroup::Joomla => f.write_str("joomla"),
             RuleGroup::Drupal => f.write_str("drupal"),
@@ -226,6 +230,14 @@ impl Rule {
 #[cfg(all(test, feature = "serde"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn javascript_group_serializes_stably() {
+        assert_eq!(
+            serde_json::to_string(&RuleGroup::JavaScript).unwrap(),
+            r#""javascript""#
+        );
+    }
 
     #[test]
     fn serialized_rules_without_case_policy_remain_insensitive() {
