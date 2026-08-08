@@ -146,6 +146,7 @@ fn should_compile_in_parallel(_rules: &[Rule]) -> bool {
     false
 }
 
+/// Drop disabled rules; normalise the matcher and surface regex compile errors.
 fn lower_rule(rule: Rule) -> Result<Option<(RuleDisposition, CompiledRule)>, CompileError> {
     if !rule.enabled {
         return Ok(None);
@@ -296,8 +297,12 @@ fn segment_match(path: &str, segment: &str) -> bool {
 
 /// Compiled `*` / `**` pattern used by [`PathMatcher::Wildcard`].
 ///
+/// Tokenised at compile time so evaluation only walks path slices:
 /// - `*` – any run of characters that does not include `/`
 /// - `**` – any run of characters including `/`
+///
+/// Not exported to Cloudflare with exact semantics (see the cloudflare
+/// crate's parity module); keep wildcards Tower-side or rewrite for export.
 #[derive(Debug, Clone)]
 struct WildcardPattern {
     tokens: Vec<WildToken>,

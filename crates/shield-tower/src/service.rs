@@ -1,8 +1,10 @@
 //! Per-request Tower [`Service`] that enforces the compiled path denylist.
 //!
 //! Produced by [`crate::ShieldLayer`]. Holds the inner service plus shared
-//! compiled rules and block-response configuration. The service never mutates
-//! an allowed request and never polls the inner service on a block.
+//! compiled rules and block-response configuration. Allowed requests are
+//! forwarded without mutation; blocked requests never poll the inner service
+//! and return only the configured empty response (plus optional server-side
+//! [`crate::OnBlock`] / `tracing`).
 
 use std::{
     future::Future,

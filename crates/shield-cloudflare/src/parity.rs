@@ -2,7 +2,10 @@
 //!
 //! Export is best-effort translation, not a proof of identical blocking.
 //! Operators should treat edge rules as a coarse first filter and keep the
-//! Tower middleware as the authoritative in-process denylist.
+//! Tower middleware as the authoritative in-process denylist. Soft gaps
+//! surface in [`crate::output::ExportReport::diagnostics`] when a rule is
+//! skipped or only approximated; hard budget/scope failures abort as
+//! [`crate::exporter::ExportError`].
 //!
 //! # Known differences
 //!
@@ -14,6 +17,4 @@
 //! | Wildcard matcher | `*` in-segment; `**` crosses `/` | Skipped — no exact CF encoding |
 //! | Case | Explicit lowercased inspection form | Explicit `lower()` in expressions |
 //! | Trailing slash | Preserved | May be altered by CF normalisation |
-//!
-//! Soft gaps surface in [`crate::output::ExportReport::diagnostics`] when a
-//! rule is skipped or only approximated.
+//! | Allow rules | Tower-side denylist exclusions | Not exported (edge sees deny-only) |

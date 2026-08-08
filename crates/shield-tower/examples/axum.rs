@@ -2,8 +2,9 @@
 //!
 //! Preferred pattern: wrap the **entire** `Router` with
 //! `ShieldLayer::default().layer(router)` so every request is evaluated
-//! before Axum route matching. `Router::layer(ShieldLayer…)` is weaker:
-//! unmatched probes never enter the layer.
+//! before Axum route matching. Using `Router::layer(ShieldLayer…)` alone is
+//! weaker: Axum runs that middleware after matching, so unmatched scanner
+//! probes never enter the layer.
 //!
 //! Run: `cargo run --example axum --package towershield`
 

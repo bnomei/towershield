@@ -3,7 +3,20 @@
 //! Turns a [`towershield_core::RuleSet`] into Cloudflare expression text, a
 //! Rulesets API-shaped JSON payload, and a human-readable
 //! [`ExportReport`]. Export is pure CPU: no network, credentials, zone IDs,
-//! Terraform, or live deploy side effects.
+//! Terraform, or live deploy side effects. The Tower middleware remains the
+//! authoritative in-process denylist; edge rules are a coarse first filter.
+//!
+//! # Domain map
+//!
+//! | Concept | Types |
+//! |---|---|
+//! | Entry point | [`CloudflareExporter`] |
+//! | Run configuration | [`CloudflareExportOptions`], [`HostScope`], [`options::CloudflareAction`] |
+//! | Plan budgets | [`CloudflarePlan`], [`CloudflareCapabilities`] |
+//! | Success artifacts | [`CloudflareOutput`], [`ExportReport`], [`output::ExportDiagnostic`] |
+//! | Hard failure | [`exporter::ExportError`] |
+//! | Matcher lowering | [`expression`] |
+//! | Known Tower↔edge gaps | [`parity`] |
 //!
 //! ## Pipeline
 //!

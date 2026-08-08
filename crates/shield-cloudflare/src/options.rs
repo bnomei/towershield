@@ -2,7 +2,10 @@
 //!
 //! Defaults intentionally leave hostnames empty so accidental zone-wide
 //! exports fail with [`crate::exporter::ExportError::MissingHostScope`] unless
-//! the caller sets hostnames or opts into [`HostScope::AllHosts`].
+//! the caller sets hostnames or opts into [`HostScope::AllHosts`]. Plan
+//! budgets come from [`crate::CloudflarePlan`] via
+//! [`crate::CloudflareCapabilities`]; override fields when account
+//! entitlements differ from published tier defaults.
 
 use crate::plan::{CloudflareCapabilities, CloudflarePlan};
 

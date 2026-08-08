@@ -1,10 +1,23 @@
 //! Tower HTTP adapter for the portable path denylist in [`towershield_core`].
 //!
 //! [`ShieldLayer`] compiles a [`RuleSet`] once and wraps any Tower
-//! [`Service`](tower_service::Service). On each request it builds an
-//! [`towershield_core::InspectionPath`] from `uri.path()`, evaluates the compiled
-//! rules, and either forwards the request **unchanged** or returns a generic
-//! blocked response without calling the inner service.
+//! [`Service`](tower_service::Service). On each request [`ShieldService`]
+//! builds an [`towershield_core::InspectionPath`] from `uri.path()`, evaluates
+//! the compiled rules, and either forwards the request **unchanged** or returns
+//! a generic empty blocked response without polling the inner service.
+//!
+//! # Domain map
+//!
+//! | Concept | Types |
+//! |---|---|
+//! | Layer configuration | [`ShieldBuilder`], [`BlockedResponse`], [`OnBlock`] |
+//! | Middleware | [`ShieldLayer`], [`ShieldService`] |
+//! | Rule authoring (re-exported) | [`Rule`], [`RuleSet`], [`PathMatcher`], [`DEFAULT_RULES`] |
+//! | Decision surface (re-exported) | [`ShieldDecision`], [`ShieldMatch`], [`CompiledRuleSet`] |
+//!
+//! Rule compilation errors surface as [`towershield_core::ruleset::CompileError`]
+//! from [`ShieldBuilder::try_build`]. Prefer that at process startup when
+//! rules come from external config; [`ShieldBuilder::build`] panics on failure.
 //!
 //! ## Placement (critical for Axum)
 //!
@@ -40,13 +53,14 @@
 //! ```
 //!
 //! Core rule types are re-exported so application crates can depend only on
-//! `towershield` for common configuration.
+//! `towershield` for common configuration. Offline Cloudflare export lives in
+//! the separate `towershield-cloudflare` crate and does not run on the request path.
 //!
 //! # Features
 //!
 //! | Feature | Effect |
 //! |---|---|
-//! | `tracing` (default) | Emit a debug span fields log line on each block |
+//! | `tracing` (default) | Emit a debug log line on each block |
 //! | `regex` (default) | Regex matchers and the broader built-in rule tier |
 //! | `rayon` | Forwarded to `towershield-core` for parallel rule compile |
 #![forbid(unsafe_code)]

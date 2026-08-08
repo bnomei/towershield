@@ -3,29 +3,36 @@
 //!
 //! This crate owns the declarative rule vocabulary and the compile/evaluate
 //! lifecycle. It has no HTTP runtime dependency: adapters supply a path
-//! string (or [`InspectionPath`]) and receive a [`ShieldDecision`].
+//! string (or [`InspectionPath`]) and receive a [`ShieldDecision`]. Use
+//! [`towershield`](https://docs.rs/towershield) for the Tower layer, and
+//! `towershield-cloudflare` for offline edge export of the same rules.
 //!
-//! Core types:
+//! # Domain map
 //!
-//! - [`Rule`] / [`RuleSet`] – versioned, ordered deny/allow rules
-//! - [`CompiledRuleSet`] – startup-compiled form used on the hot path
-//! - [`PathMatcher`] / [`CaseSensitivity`] – how a path is compared
-//! - [`InspectionPath`] – single-pass percent-decoded inspection form
-//! - [`DEFAULT_RULES`] – conservative built-in scanner-probe denylist
-//! - [`ruleset::CompileError`] – fail-fast errors from rule compilation
+//! | Concept | Types |
+//! |---|---|
+//! | Rule identity / grouping | [`RuleId`], [`RuleGroup`], [`RuleDisposition`] |
+//! | Declarative rule | [`Rule`], [`PathMatcher`], [`CaseSensitivity`] |
+//! | Authoring collection | [`RuleSet`], [`RuleSchemaVersion`] |
+//! | Hot-path evaluation | [`CompiledRuleSet`], [`InspectionPath`], [`ShieldDecision`], [`ShieldMatch`] |
+//! | Built-in denylist | [`DEFAULT_RULES`], [`defaults::default_rules`] |
+//! | Compile failure | [`ruleset::CompileError`] |
 //!
 //! # Lifecycle
 //!
 //! Build a [`RuleSet`] (or clone [`DEFAULT_RULES`]), call [`RuleSet::compile`]
-//! once at startup, then call [`CompiledRuleSet::evaluate`] per request.
-//! Allow rules win over deny rules; no match means allow (fail-open for
-//! unmatched application traffic).
+//! once at startup (or config reload), then call [`CompiledRuleSet::evaluate`]
+//! per request. Allow rules win over deny rules; no match means allow
+//! (fail-open for unmatched application traffic). Disabled rules are dropped
+//! at compile and never evaluated.
 //!
 //! # Encoding policy
 //!
-//! Path matching uses a *derived* representation – never the mutated
-//! request. See [`InspectionPath`] for single-pass decode rules, what is
+//! Path matching uses a *derived* inspection form — never a mutated request.
+//! See [`InspectionPath`] for single-pass percent-decode rules, what is
 //! excluded (query string, `..` collapse), and intentional `%2F` behaviour.
+//! Match metadata in [`ShieldMatch`] is for server-side metrics only; do not
+//! embed it in client-facing responses.
 //!
 //! # Features
 //!

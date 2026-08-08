@@ -3,7 +3,9 @@
 //! [`CloudflareExporter::export`] is the only entry point: deterministic,
 //! side-effect free, and suitable for CI or config-generation pipelines.
 //! Allow rules are ignored here (Tower-side exclusions only); disabled rules
-//! appear in the report but do not produce fragments.
+//! appear in the report but do not produce fragments. Host scope is
+//! fail-closed: empty hostnames without [`crate::HostScope::AllHosts`]
+//! yield [`ExportError::MissingHostScope`].
 
 use thiserror::Error;
 use towershield_core::{

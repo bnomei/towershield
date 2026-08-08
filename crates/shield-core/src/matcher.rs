@@ -88,6 +88,7 @@ pub enum MatchKind {
     Regex,
 }
 
+/// Strip the pattern payload so metrics can record only the operator kind.
 impl From<&PathMatcher> for MatchKind {
     fn from(m: &PathMatcher) -> Self {
         match m {

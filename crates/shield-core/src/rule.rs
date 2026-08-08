@@ -122,10 +122,12 @@ pub enum RuleDisposition {
 
 /// One declarative path rule: identity, disposition, matcher, and flags.
 ///
-/// Collect into a [`crate::RuleSet`] and compile once at startup. Constructors
-/// [`Rule::deny`] / [`Rule::allow`] produce enabled, non-built-in rules with
-/// case-**insensitive** matching; call [`Rule::with_case_sensitivity`] when
-/// the router distinguishes path case.
+/// This is the authoring unit. Collect into a [`crate::RuleSet`], compile once
+/// at startup, then evaluate. Constructors [`Rule::deny`] / [`Rule::allow`]
+/// produce enabled, non-built-in rules with case-**insensitive** matching;
+/// call [`Rule::with_case_sensitivity`] when the router treats path case as
+/// significant. Set [`Rule::enabled`] to `false` to keep a rule in a
+/// serialised set without evaluating it.
 ///
 /// # Versioning
 ///

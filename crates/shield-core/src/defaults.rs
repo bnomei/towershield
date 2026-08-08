@@ -68,6 +68,10 @@ macro_rules! regex {
     };
 }
 
+/// Author the shipped deny rules backing [`DEFAULT_RULES`] / [`default_rules`].
+///
+/// Returns the declarative form only; compilation is deferred to
+/// [`DefaultRulesProxy::compiled`] or the caller's [`RuleSet::compile`].
 fn build_default_rules() -> RuleSet {
     let rules: Vec<Rule> = vec![
         // ── Group 1: Secrets and environment files ──────────────────────────

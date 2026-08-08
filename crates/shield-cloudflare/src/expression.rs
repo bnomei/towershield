@@ -68,10 +68,12 @@ pub fn compile_rule_expression(rule: &Rule) -> Option<String> {
             }
         }
         // Core `*` stays in-segment; Cloudflare `*` crosses `/`. Core `**`
-        // has no safe CF encoding (consecutive wildcards rejected). Skip.
+        // has no safe CF encoding (consecutive wildcards rejected). Skip so
+        // the exporter never claims exact wildcard parity at the edge.
         PathMatcher::Wildcard(_) => None,
         PathMatcher::Segment(v) => {
-            // No native segment op: approximate as contains "/seg/" (see parity).
+            // No native segment op: approximate as contains "/seg/" (see
+            // crate::parity). Callers still get a fragment plus a soft diagnostic.
             let val = if case == CaseSensitivity::Insensitive {
                 format!("/{}/", v.to_ascii_lowercase())
             } else {

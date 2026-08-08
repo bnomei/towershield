@@ -181,7 +181,9 @@ impl ShieldBuilder {
     }
 }
 
-/// Shared compiled state cloned cheaply into each [`ShieldService`].
+/// Arc-shared compiled rules, blocked-response shape, and optional block hook.
+///
+/// One instance backs every [`ShieldService`] produced by a [`ShieldLayer`].
 pub(crate) struct LayerInner {
     pub(crate) compiled: CompiledRuleSet,
     pub(crate) blocked_response: BlockedResponse,

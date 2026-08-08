@@ -79,7 +79,11 @@ impl<'a> InspectionPath<'a> {
     }
 }
 
-/// Percent-decode ASCII octets exactly once; leave invalid / non-ASCII `%` runs intact.
+/// Percent-decode ASCII octets exactly once.
+///
+/// Invalid hex after `%`, non-ASCII decoded octets, and already-literal text
+/// stay verbatim so the inspection form is never shorter (more permissive)
+/// than the input. Not iterative: `%252e` becomes `/%2e…`, not `/.…`.
 fn percent_decode_once(input: &str) -> Cow<'_, str> {
     let bytes = input.as_bytes();
     let mut out: Option<String> = None;
