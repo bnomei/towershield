@@ -1,3 +1,6 @@
+//! Spot-check fixture: built-in rules stay unique, enabled, and match the
+//! checked-in allow/block path table under normal evaluation.
+
 use std::collections::HashSet;
 
 use towershield_core::{DEFAULT_RULES, InspectionPath, ShieldDecision};

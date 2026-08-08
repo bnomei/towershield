@@ -60,11 +60,16 @@ pub struct RuleSet {
 
 impl RuleSet {
     /// Empty rule set at [`RuleSchemaVersion::CURRENT`].
+    ///
+    /// Prefer [`crate::DEFAULT_RULES`] when you want the built-in denylist as
+    /// a starting point rather than an empty collection.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Append a rule and return `self` for chaining.
+    /// Append a rule at the end of the ordered list and return `self`.
+    ///
+    /// Within each disposition pass at evaluate time, earlier entries win.
     pub fn push(mut self, rule: Rule) -> Self {
         self.rules.push(rule);
         self
@@ -159,11 +164,12 @@ fn lower_rule(rule: Rule) -> Result<Option<(RuleDisposition, CompiledRule)>, Com
 
 /// Failure to lower a [`RuleSet`] into a [`CompiledRuleSet`].
 ///
-/// Today this is only raised for invalid regex patterns when the `regex`
-/// feature is enabled; other matcher kinds always compile.
+/// Raised only for invalid regex patterns when the `regex` feature is
+/// enabled. Exact, prefix, suffix, segment, contains, and wildcard matchers
+/// always compile.
 #[derive(Debug, Error)]
 pub enum CompileError {
-    /// A [`PathMatcher::Regex`] pattern failed to compile.
+    /// A regex matcher pattern failed to compile (requires the `regex` feature).
     #[error("invalid regex in rule: {0}")]
     InvalidRegex(String),
 }

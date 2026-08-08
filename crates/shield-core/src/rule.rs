@@ -21,7 +21,7 @@ use crate::matcher::{CaseSensitivity, PathMatcher};
 pub struct RuleId(pub String);
 
 impl RuleId {
-    /// Wrap an owned or borrowed string as a rule identifier.
+    /// Create a rule identifier (convention: `group.name`, e.g. `"secrets.dotenv"`).
     pub fn new(id: impl Into<String>) -> Self {
         RuleId(id.into())
     }
@@ -164,7 +164,10 @@ fn default_case_sensitivity() -> CaseSensitivity {
 }
 
 impl Rule {
-    /// Build an enabled deny rule (case-insensitive, not marked built-in).
+    /// Build an enabled deny rule (ASCII case-insensitive, not marked built-in).
+    ///
+    /// Use [`Self::with_case_sensitivity`] when the application router treats
+    /// path case as significant. Mark crate-shipped rules with [`Self::builtin`].
     pub fn deny(
         id: impl Into<RuleId>,
         group: RuleGroup,
@@ -185,7 +188,8 @@ impl Rule {
 
     /// Build an enabled allow rule used as a denylist exclusion.
     ///
-    /// Allow disposition wins over every deny rule for the same path.
+    /// At evaluate time, any matching allow short-circuits before deny rules.
+    /// Allow rules are Tower-side only: the Cloudflare exporter ignores them.
     pub fn allow(
         id: impl Into<RuleId>,
         group: RuleGroup,

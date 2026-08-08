@@ -1,7 +1,8 @@
 //! Per-request Tower [`Service`] that enforces the compiled path denylist.
 //!
-//! Produced by [`crate::ShieldLayer`]; holds the inner service plus shared
-//! compiled rules and block-response configuration.
+//! Produced by [`crate::ShieldLayer`]. Holds the inner service plus shared
+//! compiled rules and block-response configuration. The service never mutates
+//! an allowed request and never polls the inner service on a block.
 
 use std::{
     future::Future,
@@ -25,6 +26,7 @@ use crate::layer::LayerInner;
 /// - **Block**: the inner service is never polled; a configured empty
 ///   response is returned. Optional [`crate::OnBlock`] and `tracing` run first.
 /// - Only `uri.path()` is inspected (query string ignored).
+/// - `poll_ready` is delegated to the inner service unchanged.
 #[derive(Clone, Debug)]
 pub struct ShieldService<S> {
     inner: S,

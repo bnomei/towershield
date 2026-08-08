@@ -4,15 +4,19 @@
 //! account queries. Override fields when Cloudflare publishes new caps.
 
 /// Named Cloudflare plan tier used to select default capability budgets.
+///
+/// Maps to documented custom-rules limits via
+/// [`CloudflareCapabilities::for_plan`]. Override individual fields when
+/// Cloudflare publishes new caps for your account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CloudflarePlan {
-    /// Free plan (smallest expression and rule budgets; no regex).
+    /// Free plan: 5 rules, 4096-char expressions, no regex `matches`.
     Free,
-    /// Pro plan.
+    /// Pro plan: 20 rules, 8192-char expressions, no regex `matches`.
     Pro,
-    /// Business plan (regex `matches` available).
+    /// Business plan: 100 rules, 16384-char expressions, regex enabled.
     Business,
-    /// Enterprise plan (largest documented budgets).
+    /// Enterprise plan: 1000 rules, 32768-char expressions, regex enabled.
     Enterprise,
 }
 
@@ -31,7 +35,11 @@ pub struct CloudflareCapabilities {
 }
 
 impl CloudflareCapabilities {
-    /// Documented default budgets for `plan` (override fields if limits change).
+    /// Documented default budgets for `plan`.
+    ///
+    /// Values track public Cloudflare custom-rules limits (see module-adjacent
+    /// docs on [`CloudflareCapabilities`]). Override individual fields when
+    /// account entitlements differ from the published tier defaults.
     pub fn for_plan(plan: CloudflarePlan) -> Self {
         match plan {
             CloudflarePlan::Free => CloudflareCapabilities {

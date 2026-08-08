@@ -1,3 +1,8 @@
+//! Hot-path and compile-cost benchmarks for the portable rule engine.
+//!
+//! Measures default-rule compile, precompiled clone, and evaluate latency
+//! across representative allow/block paths (including percent-encoded probes).
+
 use std::sync::LazyLock;
 
 use divan::{AllocProfiler, Bencher, black_box};

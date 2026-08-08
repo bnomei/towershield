@@ -44,6 +44,10 @@ pub struct InspectionPath<'a> {
 
 impl<'a> InspectionPath<'a> {
     /// Derive inspection forms from a path-only string (no query).
+    ///
+    /// Callers must pass `http::Uri::path()` (or an equivalent path component),
+    /// never a full URI or `path?query` string. Decoding is single-pass; see
+    /// the module docs for `%2F` and double-encoding boundaries.
     pub fn new(raw: &'a str) -> Self {
         let decoded = percent_decode_once(raw);
         let has_ascii_uppercase = decoded.bytes().any(|byte| byte.is_ascii_uppercase());
@@ -55,7 +59,11 @@ impl<'a> InspectionPath<'a> {
         }
     }
 
-    /// Select decoded or lowercased form for a rule's case policy.
+    /// Path form that matches a rule's case policy.
+    ///
+    /// Sensitive rules see the single-pass decoded path. Insensitive rules
+    /// see an ASCII-lowercased view, allocated lazily only when the decoded
+    /// path actually contains uppercase ASCII.
     pub fn for_case(&self, case: crate::matcher::CaseSensitivity) -> &str {
         match case {
             crate::matcher::CaseSensitivity::Sensitive => self.decoded.as_ref(),

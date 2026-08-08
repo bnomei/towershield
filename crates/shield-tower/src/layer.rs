@@ -1,4 +1,4 @@
-//! Configuration and Tower [`Layer`][tower_layer::Layer] for path denylist middleware.
+//! Configuration and Tower [`Layer`] for path denylist middleware.
 //!
 //! [`ShieldBuilder`] owns the authoring-time knobs (rules, blocked status,
 //! observability callback). [`ShieldLayer`] holds the compiled, shareable
@@ -14,7 +14,9 @@ use towershield_core::{CompiledRuleSet, Rule, RuleSet};
 ///
 /// Always empty-bodied with `content-length: 0`. Defaults to **404** so
 /// probes learn nothing about which path was denylisted. Never embeds
-/// [`towershield_core::ShieldMatch`] details in the response.
+/// [`towershield_core::ShieldMatch`] details (rule id, group, matcher kind) in
+/// status, headers, or body — keep match metadata on the server side via
+/// [`OnBlock`] or `tracing`.
 #[derive(Debug, Clone)]
 pub struct BlockedResponse {
     status: StatusCode,
@@ -30,16 +32,22 @@ impl Default for BlockedResponse {
 
 impl BlockedResponse {
     /// Use a non-default status (e.g. 403) while keeping an empty body.
+    ///
+    /// Prefer 404 for production denylists so probes cannot distinguish
+    /// “blocked by shield” from “no such route”.
     pub fn with_status(status: StatusCode) -> Self {
         BlockedResponse { status }
     }
 
-    /// HTTP status that will be returned on block.
+    /// HTTP status returned to clients when a path is blocked.
     pub fn status(&self) -> StatusCode {
         self.status
     }
 
-    /// Materialise the empty blocked response for the service's body type.
+    /// Build an empty response with `content-length: 0` and the configured status.
+    ///
+    /// Body type `B` is the inner service's response body; only `Default` is
+    /// required because blocked responses never carry content.
     pub fn build<B: Default>(&self) -> Response<B> {
         let mut resp = Response::new(B::default());
         *resp.status_mut() = self.status;
@@ -104,13 +112,20 @@ impl Default for ShieldBuilder {
 }
 
 impl ShieldBuilder {
-    /// Replace the entire rule set (drops the previous builder rules).
+    /// Replace the entire rule set (drops built-ins unless the caller includes them).
+    ///
+    /// To extend the built-in denylist, start from
+    /// [`towershield_core::DEFAULT_RULES`].get() and push custom rules, or
+    /// use [`Self::add_rule`].
     pub fn with_ruleset(mut self, rs: RuleSet) -> Self {
         self.rules = BuilderRules::Custom(rs);
         self
     }
 
     /// Append one rule onto the builder's current set.
+    ///
+    /// When the builder still holds the built-in default, this clones
+    /// [`towershield_core::DEFAULT_RULES`] then pushes `rule`.
     pub fn add_rule(mut self, rule: Rule) -> Self {
         self.rules = BuilderRules::Custom(match self.rules {
             BuilderRules::Builtin => towershield_core::DEFAULT_RULES.get().push(rule),
@@ -119,7 +134,7 @@ impl ShieldBuilder {
         self
     }
 
-    /// Override the empty blocked response (status code only today).
+    /// Override the empty blocked response (status only; body always empty).
     pub fn with_blocked_response(mut self, r: BlockedResponse) -> Self {
         self.blocked_response = r;
         self

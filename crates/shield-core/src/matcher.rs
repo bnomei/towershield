@@ -1,7 +1,9 @@
 //! Semantic path-comparison operators used by [`crate::Rule`] matchers.
 //!
 //! Matchers describe *what* to compare on an [`crate::InspectionPath`];
-//! compilation into the engine form lives in [`crate::ruleset`].
+//! compilation into the engine form lives in [`crate::ruleset`]. Prefer the
+//! narrowest operator that covers a probe so evaluation stays cheap and
+//! Cloudflare export (when used) stays faithful.
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -66,22 +68,23 @@ pub enum CaseSensitivity {
 /// Discriminant of a [`PathMatcher`] without the pattern payload.
 ///
 /// Carried on [`crate::ShieldMatch`] so metrics and block callbacks can
-/// report *how* a rule matched without retaining the pattern string.
+/// report *how* a rule matched without retaining the pattern string or
+/// leaking probe details into client-facing responses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MatchKind {
-    /// [`PathMatcher::Exact`].
+    /// Full-path equality ([`PathMatcher::Exact`]).
     Exact,
-    /// [`PathMatcher::Prefix`].
+    /// Path-prefix match ([`PathMatcher::Prefix`]).
     Prefix,
-    /// [`PathMatcher::Suffix`].
+    /// Path-suffix match ([`PathMatcher::Suffix`]).
     Suffix,
-    /// [`PathMatcher::Segment`].
+    /// Complete `/`-delimited segment equality ([`PathMatcher::Segment`]).
     Segment,
-    /// [`PathMatcher::Contains`].
+    /// Substring match ([`PathMatcher::Contains`]).
     Contains,
-    /// [`PathMatcher::Wildcard`].
+    /// Glob-style `*` / `**` match ([`PathMatcher::Wildcard`]).
     Wildcard,
-    /// Regex matcher (requires the `regex` feature on the rule).
+    /// Regex match (source rule requires the `regex` Cargo feature).
     Regex,
 }
 

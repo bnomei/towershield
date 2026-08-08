@@ -7,16 +7,20 @@
 use crate::plan::{CloudflareCapabilities, CloudflarePlan};
 
 /// Cloudflare action applied when a generated expression matches.
+///
+/// Written into every packed rule's Rulesets API `action` field. Choose
+/// [`Log`](Self::Log) for dry-run monitoring before enabling
+/// [`Block`](Self::Block) in production.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CloudflareAction {
-    /// Hard block with Cloudflare's error page (default).
+    /// Hard block with Cloudflare's error page (default for production).
     #[default]
     Block,
-    /// Log-only (dry-run / monitoring).
+    /// Log-only match (dry-run / monitoring; traffic still reaches origin).
     Log,
-    /// JavaScript challenge.
+    /// Issue a JavaScript challenge before allowing the request.
     JsChallenge,
-    /// Managed challenge.
+    /// Issue Cloudflare's managed challenge.
     ManagedChallenge,
 }
 
@@ -45,6 +49,11 @@ pub enum HostScope {
 }
 
 /// Full configuration for [`crate::CloudflareExporter::export`].
+///
+/// Build with [`CloudflareExportOptions::builder`], or start from
+/// [`Default`] and set public fields. Export **requires** hostnames or an
+/// explicit [`HostScope::AllHosts`]; the default empty hostname list is a
+/// deliberate fail-closed guard against zone-wide accidents.
 #[derive(Debug, Clone)]
 pub struct CloudflareExportOptions {
     /// Hostname scoping (must be set before export).
@@ -82,19 +91,30 @@ impl CloudflareExportOptions {
 }
 
 /// Fluent builder for [`CloudflareExportOptions`].
+///
+/// Defaults match [`CloudflareExportOptions::default`]: Free-plan budgets,
+/// block action, and empty hostnames. Call [`Self::hostnames`] or
+/// [`Self::all_hosts`] before export or the exporter returns
+/// [`crate::exporter::ExportError::MissingHostScope`].
+///
+/// Ruleset name/description and the rule-name prefix are public fields on
+/// the finished options value if they need tuning after [`Self::build`].
 #[derive(Default)]
 pub struct CloudflareExportOptionsBuilder {
     inner: CloudflareExportOptions,
 }
 
 impl CloudflareExportOptionsBuilder {
-    /// Scope export to the given hostnames (replaces prior host scope).
+    /// Scope export to these `http.host` values (replaces prior host scope).
     pub fn hostnames(mut self, hosts: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.inner.host_scope = HostScope::Hostnames(hosts.into_iter().map(|h| h.into()).collect());
         self
     }
 
-    /// Explicitly export without an `http.host` constraint.
+    /// Explicitly export without an `http.host` constraint (zone-wide).
+    ///
+    /// Prefer named hostnames for multi-host zones; this is an intentional
+    /// opt-in that skips the missing-scope guard.
     pub fn all_hosts(mut self) -> Self {
         self.inner.host_scope = HostScope::AllHosts;
         self
@@ -106,19 +126,19 @@ impl CloudflareExportOptionsBuilder {
         self
     }
 
-    /// Use documented defaults for a named Cloudflare plan tier.
+    /// Use documented custom-rules budgets for a named Cloudflare plan tier.
     pub fn plan(mut self, plan: CloudflarePlan) -> Self {
         self.inner.capabilities = CloudflareCapabilities::for_plan(plan);
         self
     }
 
-    /// Set the match action for generated rules.
+    /// Set the match action written into every packed Cloudflare rule.
     pub fn action(mut self, action: CloudflareAction) -> Self {
         self.inner.action = action;
         self
     }
 
-    /// Finish the builder and return owned options.
+    /// Finish the builder and return owned options (does not validate host scope).
     pub fn build(self) -> CloudflareExportOptions {
         self.inner
     }

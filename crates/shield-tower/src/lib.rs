@@ -1,7 +1,7 @@
 //! Tower HTTP adapter for the portable path denylist in [`towershield_core`].
 //!
 //! [`ShieldLayer`] compiles a [`RuleSet`] once and wraps any Tower
-//! [`Service`][tower_service::Service]. On each request it builds an
+//! [`Service`](tower_service::Service). On each request it builds an
 //! [`towershield_core::InspectionPath`] from `uri.path()`, evaluates the compiled
 //! rules, and either forwards the request **unchanged** or returns a generic
 //! blocked response without calling the inner service.
@@ -41,6 +41,14 @@
 //!
 //! Core rule types are re-exported so application crates can depend only on
 //! `towershield` for common configuration.
+//!
+//! # Features
+//!
+//! | Feature | Effect |
+//! |---|---|
+//! | `tracing` (default) | Emit a debug span fields log line on each block |
+//! | `regex` | Forwarded to `towershield-core` for regex path matchers |
+//! | `rayon` | Forwarded to `towershield-core` for parallel rule compile |
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(clippy::all)]

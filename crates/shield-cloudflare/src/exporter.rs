@@ -2,6 +2,8 @@
 //!
 //! [`CloudflareExporter::export`] is the only entry point: deterministic,
 //! side-effect free, and suitable for CI or config-generation pipelines.
+//! Allow rules are ignored here (Tower-side exclusions only); disabled rules
+//! appear in the report but do not produce fragments.
 
 use thiserror::Error;
 use towershield_core::{
@@ -51,6 +53,10 @@ pub enum ExportError {
 }
 
 /// Stateless offline exporter from portable rules to Cloudflare artifacts.
+///
+/// Construct nothing: call [`CloudflareExporter::export`] with a
+/// [`RuleSet`] and [`CloudflareExportOptions`]. Suitable for CI, codegen,
+/// and operator review — never performs network I/O.
 pub struct CloudflareExporter;
 
 impl CloudflareExporter {

@@ -12,18 +12,28 @@
 //! - [`PathMatcher`] / [`CaseSensitivity`] – how a path is compared
 //! - [`InspectionPath`] – single-pass percent-decoded inspection form
 //! - [`DEFAULT_RULES`] – conservative built-in scanner-probe denylist
+//! - [`ruleset::CompileError`] – fail-fast errors from rule compilation
 //!
 //! # Lifecycle
 //!
 //! Build a [`RuleSet`] (or clone [`DEFAULT_RULES`]), call [`RuleSet::compile`]
 //! once at startup, then call [`CompiledRuleSet::evaluate`] per request.
-//! Allow rules win over deny rules; no match means allow.
+//! Allow rules win over deny rules; no match means allow (fail-open for
+//! unmatched application traffic).
 //!
 //! # Encoding policy
 //!
 //! Path matching uses a *derived* representation – never the mutated
 //! request. See [`InspectionPath`] for single-pass decode rules, what is
 //! excluded (query string, `..` collapse), and intentional `%2F` behaviour.
+//!
+//! # Features
+//!
+//! | Feature | Effect |
+//! |---|---|
+//! | `serde` (default) | Serialize/deserialize [`Rule`], [`RuleSet`], and matchers |
+//! | `regex` | Enable the `PathMatcher::Regex` operator and its compile path |
+//! | `rayon` | Parallel compile of large regex-heavy rule sets (implies `regex`) |
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(clippy::all)]

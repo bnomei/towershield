@@ -68,7 +68,7 @@ pub struct ExportReport {
 }
 
 impl ExportReport {
-    /// Render a plain-text report suitable for CLI stdout or CI logs.
+    /// Render a plain-text inclusion/diagnostic report for CLI stdout or CI logs.
     pub fn to_string_report(&self) -> String {
         let mut out = String::new();
         out.push_str("=== Cloudflare Export Report ===\n");

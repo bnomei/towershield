@@ -2,7 +2,8 @@
 //!
 //! Fragments are combined by [`combine_expressions`] and optionally prefixed
 //! with a host-scope predicate from [`host_scope_expr`]. This module does not
-//! enforce plan limits; packing lives in [`crate::exporter`].
+//! enforce plan limits or filter dispositions; packing and deny-only selection
+//! live in [`crate::exporter`].
 
 use towershield_core::{
     matcher::{CaseSensitivity, PathMatcher},

@@ -2,7 +2,9 @@
 //!
 //! Rules are plain [`Rule`] values built with the same public API applications
 //! use. Nothing is special-cased inside the matcher; disable or override via
-//! [`Rule::enabled`], allow rules, or a custom [`RuleSet`].
+//! [`Rule::enabled`], allow rules, or a custom [`RuleSet`]. Access the shared
+//! template through [`DEFAULT_RULES`] (clone + customise, or take the process
+//! compiled form).
 //!
 //! # Versioning policy
 //!
@@ -999,31 +1001,37 @@ static DEFAULT_COMPILED_RULES_CELL: OnceLock<CompiledRuleSet> = OnceLock::new();
 ///
 /// Initialised once via [`OnceLock`]; each call clones so callers can
 /// `push` custom rules without mutating the shared template. Compile the
-/// clone before request handling.
+/// clone (or use [`DefaultRulesProxy::compiled`]) before request handling.
 pub fn default_rules() -> RuleSet {
     DEFAULT_RULES_CELL.get_or_init(build_default_rules).clone()
 }
 
-/// Ergonomic handle so callers write `DEFAULT_RULES.get()` for a clone.
+/// Process-wide handle for the built-in scanner-probe denylist.
 ///
-/// Equivalent to [`default_rules()`]. Prefer this form at call sites that
-/// already import the `DEFAULT_RULES` symbol from the crate root.
+/// Prefer `DEFAULT_RULES.get()` to customise then compile, or
+/// `DEFAULT_RULES.compiled()` for the shared hot-path form. Equivalent
+/// clone path: [`default_rules`].
 pub static DEFAULT_RULES: DefaultRulesProxy = DefaultRulesProxy;
 
-/// Zero-sized proxy exposing [`DefaultRulesProxy::get`] on [`DEFAULT_RULES`].
+/// Zero-sized proxy so [`DEFAULT_RULES`] exposes [`get`](Self::get) /
+/// [`compiled`](Self::compiled) without a free-function call style.
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultRulesProxy;
 
 impl DefaultRulesProxy {
-    /// Return a clone of the built-in rule set for further customisation.
+    /// Clone the built-in declarative rules for customisation.
+    ///
+    /// The returned [`RuleSet`] is independent; push allow/deny rules or
+    /// disable groups, then compile. Does not share the compiled cache.
     pub fn get(&self) -> RuleSet {
         default_rules()
     }
 
-    /// Return the process-wide compiled built-ins.
+    /// Shared, process-wide compiled built-ins for the request path.
     ///
-    /// The first call compiles once; subsequent calls clone only two shared
-    /// rule-table handles. Use [`Self::get`] when rules need customisation.
+    /// First call compiles once (panics only if built-ins are invalid, which
+    /// is a crate bug). Later calls clone two [`std::sync::Arc`] rule tables.
+    /// Use [`Self::get`] when rules need customisation before compile.
     pub fn compiled(&self) -> CompiledRuleSet {
         DEFAULT_COMPILED_RULES_CELL
             .get_or_init(|| {
