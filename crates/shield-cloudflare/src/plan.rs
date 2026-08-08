@@ -10,13 +10,13 @@
 /// Cloudflare publishes new caps for your account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CloudflarePlan {
-    /// Free plan: 5 rules, 4096-char expressions, no regex `matches`.
+    /// Free plan: 5 rules, 4096-character expressions, no regex `matches`.
     Free,
-    /// Pro plan: 20 rules, 8192-char expressions, no regex `matches`.
+    /// Pro plan: 20 rules, 4096-character expressions, no regex `matches`.
     Pro,
-    /// Business plan: 100 rules, 16384-char expressions, regex enabled.
+    /// Business plan: 100 rules, 4096-character expressions, regex enabled.
     Business,
-    /// Enterprise plan: 1000 rules, 32768-char expressions, regex enabled.
+    /// Enterprise plan: 1000 rules, 4096-character expressions, regex enabled.
     Enterprise,
 }
 
@@ -50,17 +50,17 @@ impl CloudflareCapabilities {
             CloudflarePlan::Pro => CloudflareCapabilities {
                 regex: false,
                 maximum_rules: 20,
-                maximum_expression_length: 8192,
+                maximum_expression_length: 4096,
             },
             CloudflarePlan::Business => CloudflareCapabilities {
                 regex: true,
                 maximum_rules: 100,
-                maximum_expression_length: 16384,
+                maximum_expression_length: 4096,
             },
             CloudflarePlan::Enterprise => CloudflareCapabilities {
                 regex: true,
                 maximum_rules: 1000,
-                maximum_expression_length: 32768,
+                maximum_expression_length: 4096,
             },
         }
     }
@@ -69,5 +69,25 @@ impl CloudflareCapabilities {
 impl Default for CloudflareCapabilities {
     fn default() -> Self {
         Self::for_plan(CloudflarePlan::Free)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CloudflareCapabilities, CloudflarePlan};
+
+    #[test]
+    fn every_plan_respects_the_rules_engine_expression_limit() {
+        for plan in [
+            CloudflarePlan::Free,
+            CloudflarePlan::Pro,
+            CloudflarePlan::Business,
+            CloudflarePlan::Enterprise,
+        ] {
+            assert_eq!(
+                CloudflareCapabilities::for_plan(plan).maximum_expression_length,
+                4096
+            );
+        }
     }
 }

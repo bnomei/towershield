@@ -9,14 +9,14 @@ use crate::plan::{CloudflareCapabilities, CloudflarePlan};
 /// Cloudflare action applied when a generated expression matches.
 ///
 /// Written into every packed rule's Rulesets API `action` field. Choose
-/// [`Log`](Self::Log) for dry-run monitoring before enabling
-/// [`Block`](Self::Block) in production.
+/// [`Log`](Self::Log) for dry-run monitoring when the target account supports
+/// it, before enabling [`Block`](Self::Block) in production.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CloudflareAction {
     /// Hard block with Cloudflare's error page (default for production).
     #[default]
     Block,
-    /// Log-only match (dry-run / monitoring; traffic still reaches origin).
+    /// Log-only match (dry-run / monitoring; requires a supporting entitlement).
     Log,
     /// Issue a JavaScript challenge before allowing the request.
     JsChallenge,
