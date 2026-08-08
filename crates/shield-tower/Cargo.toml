@@ -28,6 +28,6 @@ pin-project = "1"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net"] }
 tower = { workspace = true }
-axum = { version = "0.7", features = ["tokio"] }
+axum = { version = "0.8", features = ["tokio"] }
 http-body-util = "0.1"
 bytes = "1"

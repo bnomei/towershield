@@ -28,7 +28,7 @@ regex = { version = "1", default-features = false, features = ["std"] }
 tower-layer = "0.3"
 tower-service = "0.3"
 tower = { version = "0.4", features = ["util"], default-features = false }
-axum = { version = "0.7", default-features = false }
+axum = { version = "0.8", default-features = false }
 
 # Observability
 tracing = { version = "0.1", default-features = false }
