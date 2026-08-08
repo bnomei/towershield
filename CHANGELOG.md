@@ -2,8 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- `tower-http-shield-core`: portable rule model (`Rule`, `RuleSet`, `PathMatcher`,
+  `CaseSensitivity`, `RuleGroup`, `RuleDisposition`, and `CompiledRuleSet`).
+- `tower-http-shield`: Tower `Layer` and `Service` (`ShieldLayer`, `ShieldService`,
+  `ShieldBuilder`, and `BlockedResponse`).
+- `tower-http-shield-cloudflare`: offline Cloudflare Ruleset Engine expression exporter
+  (`CloudflareExporter`, `CloudflareExportOptions`, `CloudflarePlan`, and
+  `CloudflareCapabilities`).
+- 13 built-in rule groups covering secrets, source control, cloud credentials,
+  SSH keys, build manifests, framework configuration, WordPress, Joomla,
+  Drupal, Magento, PHP web shells, debug endpoints, and AI tool credentials.
+- Per-rule case-sensitivity configuration for Tower evaluation and Cloudflare
+  export.
+- Cloudflare diagnostics that skip wildcard rules whose semantics cannot be
+  represented safely by the Rules language.
+- Optional Serde, tracing, and regex integrations.
+- Rust 2024 edition support with Rust 1.97 as the minimum supported version.
+- Unique crates.io package names under the `tower-http-shield` namespace while
+  preserving the `shield_core`, `shield_tower`, and `shield_cloudflare` Rust
+  library names.
+- CI checks for formatting, default/no-default/all-feature builds, tests,
+  Clippy, rustdoc, stable-toolchain compatibility, and package metadata.
+- Current stable releases for all direct dependencies.
+- Data-driven default-rule request fixtures and allocation-aware Divan
+  benchmarks for compilation, prepared paths, and mixed request batches.
+- An opt-in `tower-http-shield-core/rayon` feature for compiling custom sets containing
+  at least 256 regex rules in parallel; request evaluation stays sequential.
+- Conservative rules for common Composer/RubyGems/gcloud credential stores,
+  IDE metadata, framework configs and backup variants, debug consoles, and
+  Codex/Claude configuration directories.
+
+### Changed
+
+- Built-in compiled rules are cached per process and cloned through shared
+  rule tables; custom rule compilation reuses owned matcher strings.
+- Request inspection now borrows ordinary paths and lazily allocates only for
+  percent-decoding or uppercase case folding. Allow and deny rules are stored
+  separately to avoid a redundant pass through deny-only rule sets.
+
+### Documentation
+
+- Added an Axum quickstart, crate and feature reference, custom-rule examples,
+  Cloudflare export guide, threat model, path-inspection policy, and release
+  maintenance guidance.
 
 ## Built-in rule versioning policy
 
@@ -17,24 +65,3 @@ This is a **behavioural change** and is treated as follows:
 
 Applications that are concerned about unexpected blocking from new rules
 should pin the minor version.
-
----
-
-## [0.1.0] – 2026-08-08
-
-### Added
-
-- `shield-core`: portable rule model (`Rule`, `RuleSet`, `PathMatcher`,
-  `CaseSensitivity`, `RuleGroup`, `RuleDisposition`, `CompiledRuleSet`).
-- `shield-tower`: Tower `Layer` and `Service` (`ShieldLayer`, `ShieldService`,
-  `ShieldBuilder`, `BlockedResponse`).
-- `shield-cloudflare`: offline Cloudflare Ruleset Engine expression exporter
-  (`CloudflareExporter`, `CloudflareExportOptions`, `CloudflarePlan`,
-  `CloudflareCapabilities`).
-- 13 built-in rule groups covering secrets, source control, cloud credentials,
-  SSH keys, build manifests, framework configuration, WordPress, Joomla,
-  Drupal, Magento, PHP web-shells, debug endpoints, and AI tool credentials.
-- Optional `serde` feature for TOML/JSON rule serialisation.
-- Optional `tracing` feature for structured blocked-request events.
-- Optional `regex` feature for `PathMatcher::Regex`.
-- CI workflow: fmt, check, test, clippy, doc, MSRV.

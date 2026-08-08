@@ -1,4 +1,8 @@
-//! Cloudflare Ruleset Engine expression generation.
+//! Lower portable [`PathMatcher`] values into Cloudflare expression fragments.
+//!
+//! Fragments are combined by [`combine_expressions`] and optionally prefixed
+//! with a host-scope predicate from [`host_scope_expr`]. This module does not
+//! enforce plan limits; packing lives in [`crate::exporter`].
 
 use shield_core::{
     matcher::{CaseSensitivity, PathMatcher},
@@ -7,11 +11,14 @@ use shield_core::{
 
 use crate::options::HostScope;
 
-/// Compile a single rule's path matcher into a Cloudflare expression fragment.
+/// Translate one rule's matcher into a Cloudflare expression fragment.
 ///
-/// Returns `None` when the rule cannot be represented (e.g. regex on a plan
-/// without regex support – caller should emit a diagnostic).
-pub fn compile_rule_expression(rule: &Rule, case: CaseSensitivity) -> Option<String> {
+/// Returns `None` when there is no semantics-preserving translation
+/// (today: [`PathMatcher::Wildcard`]). Segment matchers are approximated as
+/// `contains "/seg/"` and still return `Some`. Case-insensitive rules wrap
+/// the path field in `lower(...)`.
+pub fn compile_rule_expression(rule: &Rule) -> Option<String> {
+    let case = rule.case_sensitivity;
     match &rule.matcher {
         PathMatcher::Exact(v) => {
             let val = v.to_ascii_lowercase();
@@ -59,23 +66,11 @@ pub fn compile_rule_expression(rule: &Rule, case: CaseSensitivity) -> Option<Str
                 Some(format!("http.request.uri.path contains {:?}", val))
             }
         }
-        PathMatcher::Wildcard(v) => {
-            let val = if case == CaseSensitivity::Insensitive {
-                v.to_ascii_lowercase()
-            } else {
-                v.clone()
-            };
-            if case == CaseSensitivity::Insensitive {
-                // Wrap path in lower() and use a lowercased pattern for
-                // case-insensitive matching (CF wildcard is case-sensitive).
-                Some(format!("lower(http.request.uri.path) wildcard {:?}", val))
-            } else {
-                Some(format!("http.request.uri.path strict wildcard {:?}", val))
-            }
-        }
+        // Core `*` stays in-segment; Cloudflare `*` crosses `/`. Core `**`
+        // has no safe CF encoding (consecutive wildcards rejected). Skip.
+        PathMatcher::Wildcard(_) => None,
         PathMatcher::Segment(v) => {
-            // Cloudflare does not have a segment operator; approximate with
-            // contains.  Document this in parity report.
+            // No native segment op: approximate as contains "/seg/" (see parity).
             let val = if case == CaseSensitivity::Insensitive {
                 format!("/{}/", v.to_ascii_lowercase())
             } else {
@@ -89,27 +84,39 @@ pub fn compile_rule_expression(rule: &Rule, case: CaseSensitivity) -> Option<Str
         }
         #[cfg(feature = "regex")]
         PathMatcher::Regex(v) => {
-            // Regex requires Business/Enterprise.
-            Some(format!("http.request.uri.path matches {:?}", v))
+            // Caller must enforce plan regex capability; we only lower syntax.
+            if case == CaseSensitivity::Insensitive {
+                Some(format!(
+                    "http.request.uri.path matches {:?}",
+                    format!("(?i:{v})")
+                ))
+            } else {
+                Some(format!("http.request.uri.path matches {:?}", v))
+            }
         }
     }
 }
 
-/// Build a host-scope prefix expression.
+/// Optional `http.host in {…}` predicate for hostname-scoped exports.
+///
+/// [`HostScope::AllHosts`] and empty hostname lists yield `None` (no prefix).
 pub fn host_scope_expr(scope: &HostScope) -> Option<String> {
     match scope {
         HostScope::AllHosts => None,
         HostScope::Hostnames(hosts) if hosts.is_empty() => None,
         HostScope::Hostnames(hosts) => {
-            // (http.host in {"a.com" "b.com"})
             let quoted: Vec<String> = hosts.iter().map(|h| format!("{:?}", h)).collect();
             Some(format!("(http.host in {{{}}})", quoted.join(" ")))
         }
     }
 }
 
-/// Combine path expression fragments with `or` into a single expression,
-/// optionally prefixed with a host scope predicate.
+/// Join path fragments with `or`, optionally requiring a host-scope prefix.
+///
+/// # Panics
+///
+/// Panics if `fragments` is empty. Callers must only combine after at least
+/// one rule compiled successfully.
 pub fn combine_expressions(fragments: &[String], host_prefix: Option<&str>) -> String {
     assert!(
         !fragments.is_empty(),
@@ -146,28 +153,21 @@ mod tests {
 
     #[test]
     fn exact_insensitive() {
-        let expr = compile_rule_expression(
-            &rule(PathMatcher::Exact("/.env".into())),
-            CaseSensitivity::Insensitive,
-        );
+        let expr = compile_rule_expression(&rule(PathMatcher::Exact("/.env".into())));
         assert_eq!(expr.unwrap(), r#"lower(http.request.uri.path) eq "/.env""#);
     }
 
     #[test]
     fn exact_sensitive() {
-        let expr = compile_rule_expression(
-            &rule(PathMatcher::Exact("/.env".into())),
-            CaseSensitivity::Sensitive,
-        );
+        let rule = rule(PathMatcher::Exact("/.env".into()))
+            .with_case_sensitivity(CaseSensitivity::Sensitive);
+        let expr = compile_rule_expression(&rule);
         assert_eq!(expr.unwrap(), r#"http.request.uri.path eq "/.env""#);
     }
 
     #[test]
     fn prefix_insensitive() {
-        let expr = compile_rule_expression(
-            &rule(PathMatcher::Prefix("/wp-admin/".into())),
-            CaseSensitivity::Insensitive,
-        );
+        let expr = compile_rule_expression(&rule(PathMatcher::Prefix("/wp-admin/".into())));
         assert_eq!(
             expr.unwrap(),
             r#"starts_with(lower(http.request.uri.path), "/wp-admin/")"#
@@ -176,10 +176,9 @@ mod tests {
 
     #[test]
     fn suffix_sensitive() {
-        let expr = compile_rule_expression(
-            &rule(PathMatcher::Suffix(".php".into())),
-            CaseSensitivity::Sensitive,
-        );
+        let rule = rule(PathMatcher::Suffix(".php".into()))
+            .with_case_sensitivity(CaseSensitivity::Sensitive);
+        let expr = compile_rule_expression(&rule);
         assert_eq!(expr.unwrap(), r#"ends_with(http.request.uri.path, ".php")"#);
     }
 

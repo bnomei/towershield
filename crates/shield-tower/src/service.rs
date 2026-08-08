@@ -1,4 +1,7 @@
-//! [`ShieldService`] – the Tower [`Service`] wrapper.
+//! Per-request Tower [`Service`] that enforces the compiled path denylist.
+//!
+//! Produced by [`crate::ShieldLayer`]; holds the inner service plus shared
+//! compiled rules and block-response configuration.
 
 use std::{
     future::Future,
@@ -13,15 +16,15 @@ use tower_service::Service;
 
 use crate::layer::LayerInner;
 
-/// Tower [`Service`] that applies path-denylist rules before calling the
-/// inner service.
+/// Tower [`Service`] that evaluates path rules, then either blocks or forwards.
 ///
-/// Blocked requests receive an empty HTTP 404 response (configurable via
-/// [`crate::ShieldBuilder`]). The inner service is **never called** for
-/// blocked requests.
+/// # Contracts
 ///
-/// Allowed requests are forwarded to the inner service **unchanged** –
-/// headers, body, URI, and method are not mutated.
+/// - **Allow**: the original request is passed to the inner service with no
+///   mutation of method, URI, headers, or body.
+/// - **Block**: the inner service is never polled; a configured empty
+///   response is returned. Optional [`crate::OnBlock`] and `tracing` run first.
+/// - Only `uri.path()` is inspected (query string ignored).
 #[derive(Clone, Debug)]
 pub struct ShieldService<S> {
     inner: S,
@@ -51,19 +54,21 @@ where
     }
 
     fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
-        let path = req.uri().path().to_owned();
-        let ip = InspectionPath::new(&path);
+        let ip = InspectionPath::new(req.uri().path());
         let decision = self.state.compiled.evaluate(&ip);
 
         match decision {
             shield_core::ShieldDecision::Allow => {
+                // End the URI borrow before forwarding the request. No path
+                // copy is needed for the common allow case.
+                drop(ip);
                 let fut = self.inner.call(req);
                 ShieldFuture::Inner(fut)
             }
             shield_core::ShieldDecision::Block(ref m) => {
-                // Invoke the observability callback if configured.
+                // Server-side only: match metadata + decoded path, never the raw request.
                 if let Some(cb) = &self.state.on_block {
-                    cb(m, req.method(), &ip.decoded);
+                    cb(m, req.method(), ip.decoded.as_ref());
                 }
 
                 #[cfg(feature = "tracing")]
@@ -86,14 +91,18 @@ where
     }
 }
 
-/// Future returned by [`ShieldService`].
+/// Future returned by [`ShieldService::call`].
+///
+/// Either drives the inner service (`Inner`) or yields a ready blocked
+/// response once (`Blocked`). Polling `Blocked` after the response is taken
+/// panics — the same single-use contract as other ready futures.
 #[pin_project::pin_project(project = ShieldFutureProj)]
 pub enum ShieldFuture<F, B, E> {
-    /// The request passed the shield; poll the inner service future.
+    /// Request allowed; poll the inner service future.
     Inner(#[pin] F),
-    /// The request was blocked; return a ready response.
+    /// Request blocked; ready response stored until first poll.
     Blocked(Option<Response<B>>),
-    // Phantom to keep E in scope.
+    /// Holds `E` in the type system without storing a value.
     #[allow(dead_code)]
     _Phantom(std::marker::PhantomData<E>),
 }

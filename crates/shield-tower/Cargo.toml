@@ -1,33 +1,38 @@
 [package]
-name = "shield-tower"
+name = "tower-http-shield"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+authors.workspace = true
+documentation = "https://docs.rs/tower-http-shield"
 description = "Tower Layer and Service for the tower-http-shield path denylist middleware."
 keywords = ["tower", "middleware", "security", "shield", "axum"]
 categories = ["web-programming", "network-programming"]
 
+[lib]
+name = "shield_tower"
+
 [features]
 default = ["tracing"]
 tracing = ["dep:tracing"]
-axum = ["dep:axum"]
+regex = ["shield-core/regex"]
+rayon = ["shield-core/rayon"]
 
 [dependencies]
-shield-core = { path = "../shield-core" }
+shield-core = { package = "tower-http-shield-core", version = "0.1.0", path = "../shield-core" }
 http = { workspace = true }
 tower-layer = { workspace = true }
 tower-service = { workspace = true }
-http-body = "1"
-http-body-util = "0.1"
 tracing = { workspace = true, optional = true }
-axum = { workspace = true, optional = true }
-pin-project = "1"
+pin-project = { workspace = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net"] }
+tokio = { workspace = true }
 tower = { workspace = true }
-axum = { version = "0.7", features = ["tokio"] }
-http-body-util = "0.1"
-bytes = "1"
+axum = { workspace = true }
+http-body-util = { workspace = true }
+bytes = { workspace = true }

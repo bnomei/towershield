@@ -1,5 +1,8 @@
-//! [`ShieldLayer`] – a Tower [`Layer`][tower_layer::Layer] that applies the
-//! path-denylist middleware.
+//! Configuration and Tower [`Layer`][tower_layer::Layer] for path denylist middleware.
+//!
+//! [`ShieldBuilder`] owns the authoring-time knobs (rules, blocked status,
+//! observability callback). [`ShieldLayer`] holds the compiled, shareable
+//! state applied to each wrapped service.
 
 use crate::service::ShieldService;
 use http::{Response, StatusCode};
@@ -7,7 +10,11 @@ use shield_core::{CompiledRuleSet, Rule, RuleSet};
 use std::sync::Arc;
 use tower_layer::Layer;
 
-/// Configures the response returned for blocked paths.
+/// Client-facing response shape for blocked scanner probes.
+///
+/// Always empty-bodied with `content-length: 0`. Defaults to **404** so
+/// probes learn nothing about which path was denylisted. Never embeds
+/// [`shield_core::ShieldMatch`] details in the response.
 #[derive(Debug, Clone)]
 pub struct BlockedResponse {
     status: StatusCode,
@@ -22,20 +29,17 @@ impl Default for BlockedResponse {
 }
 
 impl BlockedResponse {
-    /// Create with the given HTTP status code.
+    /// Use a non-default status (e.g. 403) while keeping an empty body.
     pub fn with_status(status: StatusCode) -> Self {
         BlockedResponse { status }
     }
 
-    /// The configured HTTP status code.
+    /// HTTP status that will be returned on block.
     pub fn status(&self) -> StatusCode {
         self.status
     }
 
-    /// Build the HTTP response for a blocked request.
-    ///
-    /// The body is always empty and the response contains no information
-    /// about which rule matched.
+    /// Materialise the empty blocked response for the service's body type.
     pub fn build<B: Default>(&self) -> Response<B> {
         let mut resp = Response::new(B::default());
         *resp.status_mut() = self.status;
@@ -47,16 +51,18 @@ impl BlockedResponse {
     }
 }
 
-/// Optional callback invoked when a request is blocked.
+/// Observability hook invoked after a path is blocked, before the response is returned.
 ///
-/// The callback receives the [`ShieldMatch`][shield_core::ShieldMatch] describing
-/// why the request was blocked along with the HTTP method and a safe path
-/// representation (never the raw query string, authorization headers, cookies,
-/// or body).
+/// Arguments: match metadata, HTTP method, and the **decoded path only**.
+/// Implementations must not log query strings, cookies, authorization
+/// headers, bodies, or secrets discovered in the path.
 pub type OnBlock =
     Arc<dyn Fn(&shield_core::ShieldMatch, &http::Method, &str) + Send + Sync + 'static>;
 
-/// Builder for [`ShieldLayer`].
+/// Fluent configuration for a [`ShieldLayer`] before rule compilation.
+///
+/// Defaults: built-in [`DEFAULT_RULES`][shield_core::DEFAULT_RULES], 404
+/// blocked responses, no `on_block` callback.
 ///
 /// # Example
 ///
@@ -77,15 +83,20 @@ pub type OnBlock =
 ///     .build();
 /// ```
 pub struct ShieldBuilder {
-    ruleset: RuleSet,
+    rules: BuilderRules,
     blocked_response: BlockedResponse,
     on_block: Option<OnBlock>,
+}
+
+enum BuilderRules {
+    Builtin,
+    Custom(RuleSet),
 }
 
 impl Default for ShieldBuilder {
     fn default() -> Self {
         ShieldBuilder {
-            ruleset: shield_core::DEFAULT_RULES.get(),
+            rules: BuilderRules::Builtin,
             blocked_response: BlockedResponse::default(),
             on_block: None,
         }
@@ -93,35 +104,33 @@ impl Default for ShieldBuilder {
 }
 
 impl ShieldBuilder {
-    /// Replace the entire rule set.
+    /// Replace the entire rule set (drops the previous builder rules).
     pub fn with_ruleset(mut self, rs: RuleSet) -> Self {
-        self.ruleset = rs;
+        self.rules = BuilderRules::Custom(rs);
         self
     }
 
-    /// Append a single rule to the current rule set.
+    /// Append one rule onto the builder's current set.
     pub fn add_rule(mut self, rule: Rule) -> Self {
-        self.ruleset = self.ruleset.push(rule);
+        self.rules = BuilderRules::Custom(match self.rules {
+            BuilderRules::Builtin => shield_core::DEFAULT_RULES.get().push(rule),
+            BuilderRules::Custom(ruleset) => ruleset.push(rule),
+        });
         self
     }
 
-    /// Set the HTTP response returned for blocked paths.
+    /// Override the empty blocked response (status code only today).
     pub fn with_blocked_response(mut self, r: BlockedResponse) -> Self {
         self.blocked_response = r;
         self
     }
 
-    /// Register a callback invoked when a request is blocked.
-    ///
-    /// The callback receives:
-    /// - The [`ShieldMatch`][shield_core::ShieldMatch] (rule ID, group, kind).
-    /// - The HTTP method.
-    /// - A safe path representation (decoded URI path, no query string).
+    /// Register metrics/logging for blocked requests (server-side only).
     ///
     /// # Observability policy
     ///
-    /// The callback must never log query strings, authorization headers,
-    /// cookies, request bodies, or secrets discovered in the path.
+    /// Receive only match metadata, method, and decoded path. Never log
+    /// query strings, authorization headers, cookies, bodies, or secrets.
     pub fn on_block(
         mut self,
         f: impl Fn(&shield_core::ShieldMatch, &http::Method, &str) + Send + Sync + 'static,
@@ -130,19 +139,23 @@ impl ShieldBuilder {
         self
     }
 
-    /// Compile the rule set and produce the final [`ShieldLayer`].
+    /// Compile rules and produce a shareable [`ShieldLayer`].
     ///
     /// # Panics
     ///
-    /// Panics if any regex pattern is invalid. Use
-    /// [`ShieldBuilder::try_build`] to handle errors.
+    /// Panics if compilation fails (typically an invalid regex). Prefer
+    /// [`ShieldBuilder::try_build`] at process startup when rules come from
+    /// external config.
     pub fn build(self) -> ShieldLayer {
         self.try_build().expect("failed to compile shield rule set")
     }
 
-    /// Compile the rule set and produce the final [`ShieldLayer`].
+    /// Compile rules without panicking; returns [`CompileError`][shield_core::ruleset::CompileError].
     pub fn try_build(self) -> Result<ShieldLayer, shield_core::ruleset::CompileError> {
-        let compiled = self.ruleset.compile()?;
+        let compiled = match self.rules {
+            BuilderRules::Builtin => shield_core::DEFAULT_RULES.compiled(),
+            BuilderRules::Custom(ruleset) => ruleset.compile()?,
+        };
         Ok(ShieldLayer {
             inner: Arc::new(LayerInner {
                 compiled,
@@ -153,7 +166,7 @@ impl ShieldBuilder {
     }
 }
 
-/// Inner shared state for [`ShieldLayer`] and [`ShieldService`].
+/// Shared compiled state cloned cheaply into each [`ShieldService`].
 pub(crate) struct LayerInner {
     pub(crate) compiled: CompiledRuleSet,
     pub(crate) blocked_response: BlockedResponse,
@@ -170,43 +183,41 @@ impl std::fmt::Debug for LayerInner {
     }
 }
 
-/// Tower [`Layer`] that rejects HTTP requests matching the configured deny
-/// rules.
+/// Tower [`Layer`] that evaluates the path denylist before the inner service.
 ///
-/// # Default configuration
+/// # Defaults
 ///
-/// `ShieldLayer::default()` uses the conservative built-in rule set with
-/// HTTP 404 responses for blocked paths.
+/// [`ShieldLayer::default`] compiles the built-in rule set and returns empty
+/// HTTP 404 responses for blocks.
 ///
 /// # Placement
 ///
-/// **Wrap the complete `axum::Router` using `Layer::layer(router)`.**
-///
-/// Axum's `Router::layer` runs middleware *after* route matching, so
-/// un-routed requests (404s, fallback handlers) would bypass the shield.
-/// Wrapping the whole router ensures the shield evaluates every incoming
-/// request.
+/// **Wrap the complete `axum::Router` with `layer(router)`.** Axum's
+/// `Router::layer` runs middleware *after* route matching, so unrouted
+/// probes would bypass the shield.
 ///
 /// ```rust,no_run
 /// use tower::Layer;
 /// use shield_tower::ShieldLayer;
-/// // let router: axum::Router = build_router();
 /// // let app = ShieldLayer::default().layer(router);
 /// ```
+///
+/// The layer is `Clone` + `Send` + `Sync`; the compiled rules live behind
+/// an `Arc` shared by every produced [`crate::ShieldService`].
 #[derive(Debug, Clone)]
 pub struct ShieldLayer {
     pub(crate) inner: Arc<LayerInner>,
 }
 
 impl Default for ShieldLayer {
-    /// Create a [`ShieldLayer`] using the conservative built-in rule set.
+    /// Built-in rules, 404 blocked responses, no observability callback.
     fn default() -> Self {
         ShieldBuilder::default().build()
     }
 }
 
 impl ShieldLayer {
-    /// Return a [`ShieldBuilder`] for configuring the layer.
+    /// Start a [`ShieldBuilder`] (same defaults as [`ShieldLayer::default`]).
     pub fn builder() -> ShieldBuilder {
         ShieldBuilder::default()
     }

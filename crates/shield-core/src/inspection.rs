@@ -1,106 +1,109 @@
-//! Path inspection and normalisation.
+//! Single-pass path inspection used as the matching surface.
 //!
-//! # Policy
+//! The shield never mutates the live HTTP request. Adapters (e.g. the Tower
+//! service) build an [`InspectionPath`] once per request from
+//! `http::Uri::path()`, then pass it to [`crate::CompiledRuleSet::evaluate`].
 //!
-//! The shield inspects a *derived representation* of the request URI path.
-//! The original request is **never mutated**. The derived representation is
-//! computed once in the Tower service before matching begins.
+//! # What is derived
 //!
-//! ## What the inspection path is
+//! 1. Take the raw URI path (percent-encoded as received).
+//! 2. Percent-decode **once**. Invalid `%` sequences stay verbatim so the
+//!    inspection form is never “shorter” (more permissive) than the input.
+//! 3. Lazily ASCII-lowercase only when a case-insensitive rule needs it and
+//!    the decoded path actually contains uppercase ASCII.
 //!
-//! 1. The raw URI path from `http::Uri::path()` (already percent-encoded).
-//! 2. Percent-decode the path **once** to produce the canonical form.
-//!    Malformed sequences (`%XX` where XX is not valid hex, or a truncated
-//!    `%X` at end-of-string) are left as-is in order not to accidentally
-//!    obscure an injection.
-//! 3. For the case-insensitive variant the result is ASCII-lowercased.
+//! # What is deliberately not done
 //!
-//! ## What the inspection path is NOT
+//! - Query string is excluded (callers must pass path only).
+//! - `.` / `..` segments are not collapsed (left to the router).
+//! - Duplicate and trailing slashes are preserved.
+//! - Backslashes are not rewritten to `/`.
+//! - Decoding is not iterative (`%252e` stays `/%2e…`, not `/.…`).
 //!
-//! - The query string is **not** included.
-//! - The path is **not** collapsed for `.` or `..` segments – those are
-//!   left to the downstream router.
-//! - Duplicate slashes and trailing slashes are preserved.
-//! - Backslashes are **not** converted to forward slashes.
+//! # Encoded bypasses and `%2F`
 //!
-//! ## Encoded bypasses
-//!
-//! Because we decode once, `%2eenv`, `%2F.env`, `/.%65nv` and similar
-//! trivial bypasses are covered. We do not iteratively decode.
-//!
-//! ## Encoded slash
-//!
-//! `%2F` decodes to `/`. The Tower service matches on the decoded form,
-//! which means `/.%2Fenv` would match a rule for `/.//env` after decoding,
-//! but not a rule for `/.env`. This is intentional and documented.
-//!
-//! Callers that rely on the router treating `%2F` as a literal slash
-//! separator should be aware that blocking happens on the decoded path.
+//! One-pass decode covers trivial probes such as `/%2eenv` and `/.%65nv`.
+//! `%2F` becomes `/`, so `/.%2Fenv` matches a rule for `/.//env` after
+//! decode, **not** a rule for `/.env`. That boundary is intentional.
 
-/// Carries both the original path and its decoded inspection form.
+use std::{borrow::Cow, cell::OnceCell};
+
+/// Raw path plus the single-pass decoded form used by matchers.
+///
+/// Build once per request; reuse across every rule comparison via
+/// [`InspectionPath::for_case`].
 #[derive(Debug, Clone)]
-pub struct InspectionPath {
-    /// The original, unmodified URI path (may contain percent-encoding).
-    pub raw: String,
-    /// Decoded once: percent sequences decoded, original otherwise.
-    pub decoded: String,
-    /// Lower-cased decoded form, for case-insensitive matchers.
-    pub decoded_lower: String,
+pub struct InspectionPath<'a> {
+    /// Unmodified URI path as supplied by the caller (may be percent-encoded).
+    pub raw: &'a str,
+    /// Path after exactly one percent-decode pass.
+    pub decoded: Cow<'a, str>,
+    has_ascii_uppercase: bool,
+    decoded_lower: OnceCell<String>,
 }
 
-impl InspectionPath {
-    /// Build from a raw URI path string.
-    pub fn new(raw: &str) -> Self {
+impl<'a> InspectionPath<'a> {
+    /// Derive inspection forms from a path-only string (no query).
+    pub fn new(raw: &'a str) -> Self {
         let decoded = percent_decode_once(raw);
-        let decoded_lower = decoded.to_ascii_lowercase();
+        let has_ascii_uppercase = decoded.bytes().any(|byte| byte.is_ascii_uppercase());
         InspectionPath {
-            raw: raw.to_owned(),
+            raw,
             decoded,
-            decoded_lower,
+            has_ascii_uppercase,
+            decoded_lower: OnceCell::new(),
         }
     }
 
-    /// Return the form appropriate for the given case sensitivity.
+    /// Select decoded or lowercased form for a rule's case policy.
     pub fn for_case(&self, case: crate::matcher::CaseSensitivity) -> &str {
         match case {
-            crate::matcher::CaseSensitivity::Sensitive => &self.decoded,
-            crate::matcher::CaseSensitivity::Insensitive => &self.decoded_lower,
+            crate::matcher::CaseSensitivity::Sensitive => self.decoded.as_ref(),
+            crate::matcher::CaseSensitivity::Insensitive => {
+                if self.has_ascii_uppercase {
+                    self.decoded_lower
+                        .get_or_init(|| self.decoded.to_ascii_lowercase())
+                } else {
+                    self.decoded.as_ref()
+                }
+            }
         }
     }
 }
 
-/// Decode percent-encoded octets exactly once.
-///
-/// Invalid sequences are left verbatim so that the inspection form is
-/// never shorter (more permissive) than the original path.
-fn percent_decode_once(input: &str) -> String {
+/// Percent-decode ASCII octets exactly once; leave invalid / non-ASCII `%` runs intact.
+fn percent_decode_once(input: &str) -> Cow<'_, str> {
     let bytes = input.as_bytes();
-    let mut out = String::with_capacity(bytes.len());
+    let mut out: Option<String> = None;
+    let mut copy_from = 0;
     let mut i = 0;
-    while i < bytes.len() {
+    while i + 2 < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
             let hi = hex_val(bytes[i + 1]);
             let lo = hex_val(bytes[i + 2]);
             if let (Some(h), Some(l)) = (hi, lo) {
                 let byte = (h << 4) | l;
-                // Decode to the corresponding character if it is ASCII.
-                // Non-ASCII bytes are kept as the percent-encoded form so
-                // we never break valid non-ASCII path components.
+                // Only materialise ASCII so multi-byte UTF-8 path components
+                // that were percent-encoded stay intact as sequences.
                 if byte < 0x80 {
-                    out.push(byte as char);
+                    let decoded = out.get_or_insert_with(|| String::with_capacity(bytes.len()));
+                    decoded.push_str(&input[copy_from..i]);
+                    decoded.push(byte as char);
                     i += 3;
+                    copy_from = i;
                     continue;
                 }
             }
-            // Invalid or non-ASCII: emit verbatim.
-            out.push(bytes[i] as char);
-            i += 1;
-        } else {
-            out.push(bytes[i] as char);
-            i += 1;
         }
+        i += 1;
     }
-    out
+
+    if let Some(mut decoded) = out {
+        decoded.push_str(&input[copy_from..]);
+        Cow::Owned(decoded)
+    } else {
+        Cow::Borrowed(input)
+    }
 }
 
 fn hex_val(b: u8) -> Option<u8> {
@@ -162,5 +165,20 @@ mod tests {
     fn backslash_preserved() {
         let p = InspectionPath::new("/foo\\bar");
         assert_eq!(p.decoded, "/foo\\bar");
+    }
+
+    #[test]
+    fn unencoded_lowercase_path_borrows_without_allocating() {
+        let p = InspectionPath::new("/api/users");
+        assert!(matches!(p.decoded, Cow::Borrowed(_)));
+        assert!(p.decoded_lower.get().is_none());
+        assert_eq!(p.for_case(CaseSensitivity::Insensitive), "/api/users");
+        assert!(p.decoded_lower.get().is_none());
+    }
+
+    #[test]
+    fn preserves_unencoded_unicode() {
+        let p = InspectionPath::new("/café/%zz");
+        assert_eq!(p.decoded, "/café/%zz");
     }
 }

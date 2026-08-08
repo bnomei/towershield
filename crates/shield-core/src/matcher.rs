@@ -1,20 +1,27 @@
-//! Path matcher types: [`PathMatcher`], [`CaseSensitivity`], [`MatchKind`].
+//! Semantic path-comparison operators used by [`crate::Rule`] matchers.
+//!
+//! Matchers describe *what* to compare on an [`crate::InspectionPath`];
+//! compilation into the engine form lives in [`crate::ruleset`].
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// How to match the request path.
+/// How a rule compares against the decoded inspection path.
+///
+/// Prefer the narrowest operator that still covers the probe: `Exact` and
+/// `Prefix` are cheapest and export cleanly to Cloudflare; `Wildcard` and
+/// `Segment` have known export/parity limits (see `tower-http-shield-cloudflare`).
 ///
 /// # Wildcard patterns
 ///
-/// Wildcard patterns support `*` (any run of non-`/` characters) and `**`
-/// (any run of characters including `/`). They are converted to a simple
-/// NFA rather than to a regex at compile time.
+/// `*` matches any run of non-`/` characters; `**` matches any run including
+/// `/`. Patterns compile to a small recursive matcher, not a regex.
 ///
 /// # Regex
 ///
-/// Only available with the `regex` Cargo feature. The pattern is anchored
-/// to the start of the path string.
+/// Requires the `regex` Cargo feature. The pattern is applied to the
+/// inspection path string (not re-anchored by this crate beyond what the
+/// pattern itself specifies).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
@@ -22,55 +29,59 @@ use serde::{Deserialize, Serialize};
     serde(tag = "match", content = "value", rename_all = "snake_case")
 )]
 pub enum PathMatcher {
-    /// The path must equal the value exactly.
+    /// Full-path equality after inspection decoding.
     Exact(String),
-    /// The path must start with the given prefix.
+    /// Path starts with this prefix (including any required trailing `/`).
     Prefix(String),
-    /// The path must end with the given suffix.
+    /// Path ends with this suffix (e.g. `".pem"`).
     Suffix(String),
-    /// The path must contain the given string as a complete URI path segment.
+    /// A complete `/`-delimited segment equals this value (no `/` in value).
     Segment(String),
-    /// The path must contain the given string anywhere.
+    /// Substring appears anywhere in the path.
     Contains(String),
-    /// Wildcard: `*` matches any run of non-`/` characters; `**` matches
-    /// any run including `/`.
+    /// Glob-style pattern: `*` stays in one segment; `**` crosses `/`.
     Wildcard(String),
-    /// Regular-expression match (requires `regex` Cargo feature).
+    /// Regular-expression match (requires the `regex` feature).
     #[cfg(feature = "regex")]
     Regex(String),
 }
 
-/// Case-handling policy for a rule.
+/// Per-rule case-handling policy applied during compile and evaluate.
+///
+/// The enum's [`Default`] is [`CaseSensitivity::Sensitive`]. New
+/// [`crate::Rule`] values and serde loads that omit the field still default
+/// to **insensitive** match behaviour so scanner-probe coverage is not
+/// case-fragile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum CaseSensitivity {
-    /// Match is case-sensitive (default).
+    /// Compare the decoded path as-is (case-sensitive).
     #[default]
     Sensitive,
-    /// Match is case-insensitive. The path is lowercased before comparison.
+    /// Compare against the ASCII-lowercased inspection form.
     Insensitive,
 }
 
-/// The discriminant of a [`PathMatcher`] variant.
+/// Discriminant of a [`PathMatcher`] without the pattern payload.
 ///
-/// Used in [`crate::ShieldMatch`] and metrics so the match kind can be
-/// reported without carrying the full pattern string.
+/// Carried on [`crate::ShieldMatch`] so metrics and block callbacks can
+/// report *how* a rule matched without retaining the pattern string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MatchKind {
-    /// Exact path equality.
+    /// [`PathMatcher::Exact`].
     Exact,
-    /// Prefix match.
+    /// [`PathMatcher::Prefix`].
     Prefix,
-    /// Suffix match.
+    /// [`PathMatcher::Suffix`].
     Suffix,
-    /// Complete URI-segment match.
+    /// [`PathMatcher::Segment`].
     Segment,
-    /// Substring match.
+    /// [`PathMatcher::Contains`].
     Contains,
-    /// Wildcard pattern.
+    /// [`PathMatcher::Wildcard`].
     Wildcard,
-    /// Regular-expression match.
+    /// Regex matcher (requires the `regex` feature on the rule).
     Regex,
 }
 

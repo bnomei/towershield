@@ -1,70 +1,74 @@
-//! Output types for Cloudflare export.
+//! Artifacts produced by a successful offline Cloudflare export.
+//!
+//! [`CloudflareOutput`] bundles the combined expression text, the Rulesets
+//! API payload, and an [`ExportReport`] for human or CI review. Soft parity
+//! issues appear as [`ExportDiagnostic`] entries rather than hard errors.
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// A Cloudflare Rulesets API-compatible rule entry.
+/// One rule entry in a Rulesets API-compatible payload.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CloudflareApiRule {
-    /// Human-readable description.
+    /// Operator-facing description (includes the configured name prefix).
     pub description: String,
-    /// Ruleset Engine expression.
+    /// Full Ruleset Engine expression for this packed rule.
     pub expression: String,
-    /// Action string.
+    /// Action wire value (`block`, `log`, …).
     pub action: String,
-    /// Whether this rule is enabled.
+    /// Whether the rule should be enabled when applied.
     pub enabled: bool,
 }
 
-/// A Cloudflare Rulesets API-compatible ruleset payload.
+/// Ruleset wrapper matching the custom firewall phase payload shape.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CloudflareApiRuleset {
-    /// Ruleset name.
+    /// Ruleset display name.
     pub name: String,
     /// Ruleset description.
     pub description: String,
-    /// Rule kind, e.g. `"custom"`.
+    /// Kind wire value (export always uses `"custom"`).
     pub kind: String,
-    /// Phase, e.g. `"http_request_firewall_custom"`.
+    /// Phase wire value (`"http_request_firewall_custom"`).
     pub phase: String,
-    /// The generated rules.
+    /// Packed rules after plan-aware combining.
     pub rules: Vec<CloudflareApiRule>,
 }
 
-/// A single diagnostic emitted when a rule cannot be fully exported.
+/// Soft warning when a source rule is skipped or only approximately exported.
 #[derive(Debug, Clone)]
 pub struct ExportDiagnostic {
-    /// The rule ID that triggered the diagnostic.
+    /// Portable rule ID, or a packing sentinel such as `"packing"`.
     pub rule_id: String,
-    /// Human-readable explanation.
+    /// What went wrong or what was approximated.
     pub message: String,
-    /// Optional suggestion.
+    /// Optional remediation hint for operators.
     pub suggestion: Option<String>,
 }
 
-/// Human-readable export report.
+/// Operator-facing summary of what the exporter included, skipped, and packed.
 #[derive(Debug, Clone)]
 pub struct ExportReport {
-    /// IDs of rules included in the export.
+    /// Source rule IDs that produced Cloudflare fragments.
     pub included_rule_ids: Vec<String>,
-    /// IDs of rules that were disabled and skipped.
+    /// Source rule IDs with `enabled = false` (never candidates).
     pub disabled_rule_ids: Vec<String>,
-    /// Number of generated Cloudflare rules.
+    /// Count of packed Cloudflare rules (after `or` grouping).
     pub cloudflare_rule_count: usize,
-    /// Expression lengths for each generated rule.
+    /// Character length of each packed expression (for plan budgeting).
     pub expression_lengths: Vec<usize>,
-    /// Whether regex capability was used.
+    /// Whether any regex `matches` fragment was emitted.
     pub used_regex: bool,
-    /// Hostname scope description.
+    /// Human description of host scope (`"all hosts"` or joined names).
     pub hostname_scope: String,
-    /// Diagnostics for unsupported or partially-supported rules.
+    /// Soft diagnostics (wildcard skip, segment approximation, …).
     pub diagnostics: Vec<ExportDiagnostic>,
 }
 
 impl ExportReport {
-    /// Format the report as a human-readable string.
+    /// Render a plain-text report suitable for CLI stdout or CI logs.
     pub fn to_string_report(&self) -> String {
         let mut out = String::new();
         out.push_str("=== Cloudflare Export Report ===\n");
@@ -104,19 +108,22 @@ impl ExportReport {
     }
 }
 
-/// Combined output from a Cloudflare export operation.
+/// Complete offline export result: expression preview, API body, and report.
+///
+/// `expression` mirrors the first packed rule for quick inspection; full
+/// multi-rule output lives in [`CloudflareOutput::api_ruleset`].
 #[derive(Debug, Clone)]
 pub struct CloudflareOutput {
-    /// Raw Ruleset Engine expression (deny rules only, combined).
+    /// Preview expression (typically the first packed Cloudflare rule).
     pub expression: String,
-    /// Rulesets API-compatible JSON payload.
+    /// Payload shaped for the Rulesets API (or Terraform hand-off).
     pub api_ruleset: CloudflareApiRuleset,
-    /// Human-readable report.
+    /// Inclusion list, sizes, and soft diagnostics.
     pub report: ExportReport,
 }
 
 impl CloudflareOutput {
-    /// Serialize the API ruleset to JSON.
+    /// Pretty-print [`CloudflareOutput::api_ruleset`] as JSON (`serde` feature).
     #[cfg(feature = "serde")]
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(&self.api_ruleset)

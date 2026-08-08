@@ -1,7 +1,10 @@
-//! The main [`CloudflareExporter`] type.
+//! Offline compile of a portable [`RuleSet`] into Cloudflare Ruleset output.
+//!
+//! [`CloudflareExporter::export`] is the only entry point: deterministic,
+//! side-effect free, and suitable for CI or config-generation pipelines.
 
 use shield_core::{
-    matcher::{CaseSensitivity, PathMatcher},
+    matcher::PathMatcher,
     rule::{Rule, RuleDisposition},
     ruleset::RuleSet,
 };
@@ -15,42 +18,53 @@ use crate::{
     },
 };
 
-/// Error type for export failures.
+/// Hard failure that aborts export (missing scope, empty set, plan overflow).
+///
+/// Soft mismatches (segment approximation, skipped wildcards) become
+/// [`ExportDiagnostic`] entries inside a successful [`CloudflareOutput`].
 #[derive(Debug, Error)]
 pub enum ExportError {
-    /// The host scope was not configured.
+    /// Neither hostnames nor an explicit [`HostScope::AllHosts`] was set.
     #[error("host scope required: set hostnames or call all_hosts()")]
     MissingHostScope,
-    /// No deny rules available to export.
+    /// No enabled deny rules could be translated into Cloudflare fragments.
     #[error("no exportable deny rules in rule set")]
     NoRules,
-    /// The generated expressions exceed plan limits.
+    /// A packed expression exceeded the plan character budget.
     #[error("expression size {size} exceeds plan maximum {max} for rule group {index}")]
     ExpressionTooLong {
-        /// Generated expression size.
+        /// Character length of the generated expression.
         size: usize,
-        /// Plan maximum.
+        /// Plan maximum expression length.
         max: usize,
-        /// Cloudflare rule index (0-based).
+        /// Zero-based index of the Cloudflare rule being built.
         index: usize,
     },
-    /// Too many rules for the plan.
+    /// Packing produced more Cloudflare rules than the plan allows.
     #[error("generated {count} Cloudflare rules but plan allows {max}")]
     TooManyRules {
-        /// Generated count.
+        /// Number of Cloudflare rules after packing.
         count: usize,
-        /// Plan maximum.
+        /// Plan maximum rule count.
         max: usize,
     },
 }
 
-/// Exports a [`RuleSet`] into Cloudflare Ruleset Engine output.
-///
-/// This exporter is offline – it makes no network calls.
+/// Stateless offline exporter from portable rules to Cloudflare artifacts.
 pub struct CloudflareExporter;
 
 impl CloudflareExporter {
-    /// Export the given rule set with the provided options.
+    /// Compile `ruleset` under `options` into expressions, API JSON, and a report.
+    ///
+    /// Only **enabled deny** rules are candidates. Allow rules stay on the
+    /// Tower side as exclusions. Deny rules are sorted by ID for deterministic
+    /// output. Fragments are packed into `or` groups up to the plan's
+    /// expression-length and rule-count caps.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExportError`] when host scope is unset, nothing is
+    /// exportable, or packing exceeds plan limits.
     pub fn export(
         ruleset: &RuleSet,
         options: &CloudflareExportOptions,
@@ -70,7 +84,10 @@ impl CloudflareExporter {
         let mut included: Vec<String> = Vec::new();
         let mut disabled: Vec<String> = Vec::new();
         let mut diagnostics: Vec<ExportDiagnostic> = Vec::new();
+        #[cfg(feature = "regex")]
         let mut used_regex = false;
+        #[cfg(not(feature = "regex"))]
+        let used_regex = false;
 
         // 2. Collect deny rules sorted by ID for determinism.
         let mut deny_rules: Vec<&Rule> = ruleset
@@ -114,15 +131,28 @@ impl CloudflareExporter {
                 diagnostics.push(ExportDiagnostic {
                     rule_id: rule.id.0.clone(),
                     message: format!(
-                        "Rule `{}` uses Segment matcher which is approximated as `contains` in Cloudflare. May produce false positives.",
+                        "Rule `{}` uses Segment matcher which is approximated as `contains` in Cloudflare. May produce false positives or negatives.",
                         rule.id
                     ),
                     suggestion: Some("Consider rewriting as Prefix or Exact matcher.".into()),
                 });
             }
 
-            let case = CaseSensitivity::Insensitive; // built-in rules are all insensitive
-            if let Some(expr) = compile_rule_expression(rule, case) {
+            if matches!(rule.matcher, PathMatcher::Wildcard(_)) {
+                diagnostics.push(ExportDiagnostic {
+                    rule_id: rule.id.0.clone(),
+                    message: format!(
+                        "Rule `{}` uses wildcard semantics that Cloudflare cannot represent exactly.",
+                        rule.id
+                    ),
+                    suggestion: Some(
+                        "Rewrite as exact, prefix, suffix, contains, or regex rules.".into(),
+                    ),
+                });
+                continue;
+            }
+
+            if let Some(expr) = compile_rule_expression(rule) {
                 #[cfg(feature = "regex")]
                 if matches!(rule.matcher, PathMatcher::Regex(_)) {
                     used_regex = true;
@@ -258,7 +288,7 @@ mod tests {
     use super::*;
     use crate::options::CloudflareExportOptions;
     use crate::plan::CloudflarePlan;
-    use shield_core::DEFAULT_RULES;
+    use shield_core::{CaseSensitivity, DEFAULT_RULES, PathMatcher, Rule, RuleGroup, RuleSet};
 
     fn opts_with_host(host: &str) -> CloudflareExportOptions {
         CloudflareExportOptions::builder()
@@ -294,11 +324,12 @@ mod tests {
         let opts = opts_with_host("example.com");
         let out = CloudflareExporter::export(&rs, &opts).unwrap();
         assert!(!out.report.included_rule_ids.is_empty());
-        assert!(out
-            .report
-            .included_rule_ids
-            .iter()
-            .any(|id| id.contains("secrets")));
+        assert!(
+            out.report
+                .included_rule_ids
+                .iter()
+                .any(|id| id.contains("secrets"))
+        );
     }
 
     #[test]
@@ -320,6 +351,50 @@ mod tests {
         let b = CloudflareExporter::export(&rs, &opts).unwrap();
         assert_eq!(a.expression, b.expression);
         assert_eq!(a.report.included_rule_ids, b.report.included_rule_ids);
+    }
+
+    #[test]
+    fn export_respects_case_sensitive_rules() {
+        let rs = RuleSet::new().push(
+            Rule::deny(
+                "test.case_sensitive",
+                RuleGroup::Custom("test".into()),
+                "test",
+                PathMatcher::Exact("/Admin".into()),
+            )
+            .with_case_sensitivity(CaseSensitivity::Sensitive),
+        );
+        let out = CloudflareExporter::export(&rs, &opts_with_host("example.com")).unwrap();
+
+        assert!(
+            out.expression
+                .contains(r#"http.request.uri.path eq "/Admin""#)
+        );
+        assert!(!out.expression.contains("lower(http.request.uri.path)"));
+    }
+
+    #[test]
+    fn wildcard_rules_are_skipped_with_a_diagnostic() {
+        let rs = RuleSet::new()
+            .push(Rule::deny(
+                "test.exact",
+                RuleGroup::Custom("test".into()),
+                "exportable",
+                PathMatcher::Exact("/blocked".into()),
+            ))
+            .push(Rule::deny(
+                "test.wildcard",
+                RuleGroup::Custom("test".into()),
+                "not exactly exportable",
+                PathMatcher::Wildcard("/admin/*".into()),
+            ));
+        let out = CloudflareExporter::export(&rs, &opts_with_host("example.com")).unwrap();
+
+        assert!(!out.expression.contains("wildcard"));
+        assert!(out.report.diagnostics.iter().any(|diagnostic| {
+            diagnostic.rule_id == "test.wildcard"
+                && diagnostic.message.contains("cannot represent exactly")
+        }));
     }
 
     #[cfg(feature = "serde")]

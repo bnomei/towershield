@@ -1,25 +1,25 @@
-//! Conservative built-in rule set shipped with the library.
+//! Conservative built-in scanner-probe denylist shipped with the library.
 //!
-//! Rules are defined as immutable data using the same public [`Rule`] API
-//! that application code uses. No logic is hardcoded into the matching engine.
+//! Rules are plain [`Rule`] values built with the same public API applications
+//! use. Nothing is special-cased inside the matcher; disable or override via
+//! [`Rule::enabled`], allow rules, or a custom [`RuleSet`].
 //!
 //! # Versioning policy
 //!
-//! Built-in rules are versioned alongside the crate. Adding a new rule is
-//! a *minor* version bump because it may block a previously-allowed path.
-//! Removing a rule or weakening a match is a *major* version bump.
+//! Built-in content follows crate semver: **adding** a rule is a minor bump
+//! (more paths may block); **removing** or weakening a match is a major bump.
 //!
 //! # False-positive guidance
 //!
-//! - **WordPress / Joomla / Drupal / Magento / PHP apps**: disable the
-//!   corresponding rule group.
-//! - **`/metrics`, `/health`, `/admin`**: these are not blocked by default.
-//! - **User-controlled path segments**: add explicit allow rules for
-//!   legitimate paths that coincidentally match a rule.
+//! - **WordPress / Joomla / Drupal / Magento / PHP apps**: drop or disable the
+//!   matching [`RuleGroup`] entries before compile.
+//! - **`/metrics`, `/health`, `/admin`**: intentionally *not* blocked by default.
+//! - **Overlapping app paths**: add a narrow [`Rule::allow`] exclusion.
 
 use std::sync::OnceLock;
 
 use crate::{
+    CompiledRuleSet,
     matcher::PathMatcher,
     rule::{Rule, RuleGroup},
     ruleset::RuleSet,
@@ -158,6 +158,54 @@ fn build_default_rules() -> RuleSet {
             "Block .docker/config.json",
             exact!("/.docker/config.json")
         ),
+        deny!(
+            "secrets.credentials_json",
+            RuleGroup::Secrets,
+            "Block generic credentials.json",
+            exact!("/credentials.json")
+        ),
+        deny!(
+            "secrets.auth_json",
+            RuleGroup::Secrets,
+            "Block generic auth.json",
+            exact!("/auth.json")
+        ),
+        deny!(
+            "secrets.dot_auth_json",
+            RuleGroup::Secrets,
+            "Block .auth.json",
+            exact!("/.auth.json")
+        ),
+        deny!(
+            "secrets.composer_auth",
+            RuleGroup::Secrets,
+            "Block Composer authentication config",
+            exact!("/.composer-auth.json")
+        ),
+        deny!(
+            "secrets.composer_prefix",
+            RuleGroup::Secrets,
+            "Block Composer home metadata",
+            prefix!("/.composer/")
+        ),
+        deny!(
+            "secrets.rubygems_prefix",
+            RuleGroup::Secrets,
+            "Block RubyGems credential store",
+            prefix!("/.gem/")
+        ),
+        deny!(
+            "secrets.secrets_yml",
+            RuleGroup::Secrets,
+            "Block secrets.yml",
+            exact!("/secrets.yml")
+        ),
+        deny!(
+            "secrets.config_secrets_yml",
+            RuleGroup::Secrets,
+            "Block config/secrets.yml",
+            exact!("/config/secrets.yml")
+        ),
         // ── Group 2: Source-control metadata ────────────────────────────────
         deny!(
             "scm.git_prefix",
@@ -243,6 +291,30 @@ fn build_default_rules() -> RuleSet {
             RuleGroup::CloudCredentials,
             "Block .azure/ prefix",
             prefix!("/.azure/")
+        ),
+        deny!(
+            "cloud.gcloud_prefix",
+            RuleGroup::CloudCredentials,
+            "Block gcloud credential databases",
+            prefix!("/.config/gcloud/")
+        ),
+        deny!(
+            "cloud.gcloud_access_tokens",
+            RuleGroup::CloudCredentials,
+            "Block gcloud access token database",
+            exact!("/access_tokens.db")
+        ),
+        deny!(
+            "cloud.gcloud_credentials_db",
+            RuleGroup::CloudCredentials,
+            "Block gcloud credentials database",
+            exact!("/credentials.db")
+        ),
+        deny!(
+            "cloud.service_account_credentials",
+            RuleGroup::CloudCredentials,
+            "Block service-account credentials JSON",
+            exact!("/service-account-credentials.json")
         ),
         // ── Group 4: SSH keys ────────────────────────────────────────────────
         deny!(
@@ -378,6 +450,24 @@ fn build_default_rules() -> RuleSet {
             "Block ansible vault files",
             suffix!(".vault")
         ),
+        deny!(
+            "build.idea_prefix",
+            RuleGroup::BuildManifests,
+            "Block JetBrains project metadata",
+            prefix!("/.idea/")
+        ),
+        deny!(
+            "build.vscode_prefix",
+            RuleGroup::BuildManifests,
+            "Block VS Code project metadata",
+            prefix!("/.vscode/")
+        ),
+        deny!(
+            "build.vscode_server_prefix",
+            RuleGroup::BuildManifests,
+            "Block VS Code server metadata",
+            prefix!("/.vscode-server/")
+        ),
         // ── Group 6: Framework configuration ────────────────────────────────
         deny!(
             "fw.rails_master_key",
@@ -474,6 +564,54 @@ fn build_default_rules() -> RuleSet {
             RuleGroup::FrameworkConfig,
             "Block local.xml",
             exact!("/local.xml")
+        ),
+        deny!(
+            "fw.php_ini",
+            RuleGroup::FrameworkConfig,
+            "Block php.ini",
+            exact!("/php.ini")
+        ),
+        deny!(
+            "fw.phpunit_xml",
+            RuleGroup::FrameworkConfig,
+            "Block PHPUnit configuration",
+            exact!("/phpunit.xml")
+        ),
+        deny!(
+            "fw.redis_conf",
+            RuleGroup::FrameworkConfig,
+            "Block Redis configuration",
+            exact!("/redis.conf")
+        ),
+        deny!(
+            "fw.uwsgi_ini",
+            RuleGroup::FrameworkConfig,
+            "Block uWSGI configuration",
+            exact!("/uwsgi.ini")
+        ),
+        deny!(
+            "fw.gunicorn_conf",
+            RuleGroup::FrameworkConfig,
+            "Block Gunicorn configuration",
+            exact!("/gunicorn.conf.py")
+        ),
+        deny!(
+            "fw.config_php_backups",
+            RuleGroup::FrameworkConfig,
+            "Block config.php backup variants",
+            prefix!("/config.php.")
+        ),
+        deny!(
+            "fw.settings_php_backups",
+            RuleGroup::FrameworkConfig,
+            "Block settings.php backup variants",
+            prefix!("/settings.php.")
+        ),
+        deny!(
+            "fw.wp_config_backups",
+            RuleGroup::FrameworkConfig,
+            "Block wp-config.php backup variants",
+            prefix!("/wp-config.php.")
         ),
         // ── Group 7: WordPress ───────────────────────────────────────────────
         deny!(
@@ -752,6 +890,30 @@ fn build_default_rules() -> RuleSet {
             "Block /_wdt prefix (Symfony)",
             prefix!("/_wdt/")
         ),
+        deny!(
+            "debug.pyramid_toolbar",
+            RuleGroup::Debug,
+            "Block Pyramid debug toolbar",
+            prefix!("/_debug_toolbar/")
+        ),
+        deny!(
+            "debug.clockwork",
+            RuleGroup::Debug,
+            "Block Clockwork debug UI",
+            prefix!("/__clockwork/")
+        ),
+        deny!(
+            "debug.elmah",
+            RuleGroup::Debug,
+            "Block ASP.NET ELMAH diagnostics",
+            exact!("/elmah.axd")
+        ),
+        deny!(
+            "debug.trace_axd",
+            RuleGroup::Debug,
+            "Block ASP.NET trace diagnostics",
+            exact!("/trace.axd")
+        ),
         // ── Group 13: AI and developer-tool credentials ──────────────────────
         deny!(
             "ai.codex_config",
@@ -813,44 +975,63 @@ fn build_default_rules() -> RuleSet {
             "Block .continue/ prefix",
             prefix!("/.continue/")
         ),
+        deny!(
+            "ai.codex_prefix",
+            RuleGroup::AiTools,
+            "Block Codex credentials and config",
+            prefix!("/.codex/")
+        ),
+        deny!(
+            "ai.claude_prefix",
+            RuleGroup::AiTools,
+            "Block Claude credentials and config",
+            prefix!("/.claude/")
+        ),
     ];
 
     rules.into_iter().fold(RuleSet::new(), |rs, r| rs.push(r))
 }
 
 static DEFAULT_RULES_CELL: OnceLock<RuleSet> = OnceLock::new();
+static DEFAULT_COMPILED_RULES_CELL: OnceLock<CompiledRuleSet> = OnceLock::new();
 
-/// The conservative built-in rule set.
+/// Clone of the process-wide built-in [`RuleSet`] (all rules enabled).
 ///
-/// This is a [`RuleSet`] containing all built-in rules with `enabled = true`.
-/// Call `.compile()` to obtain a [`crate::CompiledRuleSet`] for per-request
-/// evaluation.
-///
-/// # Cloning
-///
-/// [`RuleSet`] implements `Clone`. The default rules are initialised once via
-/// [`OnceLock`] and cloned on access to avoid repeated allocation.
+/// Initialised once via [`OnceLock`]; each call clones so callers can
+/// `push` custom rules without mutating the shared template. Compile the
+/// clone before request handling.
 pub fn default_rules() -> RuleSet {
     DEFAULT_RULES_CELL.get_or_init(build_default_rules).clone()
 }
 
-// Re-export as a free function callable as `DEFAULT_RULES()`.
-// We also expose a `DEFAULT_RULES` constant alias using a wrapper so
-// callers can write `DEFAULT_RULES.get()`.
-/// Alias for [`default_rules()`].
+/// Ergonomic handle so callers write `DEFAULT_RULES.get()` for a clone.
 ///
-/// Use `DEFAULT_RULES.get()` to obtain a mutable copy you can add
-/// custom rules to before compiling.
+/// Equivalent to [`default_rules()`]. Prefer this form at call sites that
+/// already import the `DEFAULT_RULES` symbol from the crate root.
 pub static DEFAULT_RULES: DefaultRulesProxy = DefaultRulesProxy;
 
-/// Proxy type that lets `DEFAULT_RULES.get()` call [`default_rules()`].
+/// Zero-sized proxy exposing [`DefaultRulesProxy::get`] on [`DEFAULT_RULES`].
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultRulesProxy;
 
 impl DefaultRulesProxy {
-    /// Return a clone of the built-in rule set.
+    /// Return a clone of the built-in rule set for further customisation.
     pub fn get(&self) -> RuleSet {
         default_rules()
+    }
+
+    /// Return the process-wide compiled built-ins.
+    ///
+    /// The first call compiles once; subsequent calls clone only two shared
+    /// rule-table handles. Use [`Self::get`] when rules need customisation.
+    pub fn compiled(&self) -> CompiledRuleSet {
+        DEFAULT_COMPILED_RULES_CELL
+            .get_or_init(|| {
+                build_default_rules()
+                    .compile()
+                    .expect("built-in rules must compile")
+            })
+            .clone()
     }
 }
 

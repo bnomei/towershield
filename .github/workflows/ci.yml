@@ -2,8 +2,14 @@ name: CI
 
 on:
   push:
-    branches: ["main", "master", "copilot/**"]
+    branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -14,75 +20,155 @@ env:
 
 jobs:
   fmt:
-    name: Formatting
+    name: Rustfmt
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --all -- --check
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
   check:
-    name: Check
+    name: Check (${{ matrix.features.name }})
+    needs: fmt
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - name: default
+            args: ""
+          - name: no-default-features
+            args: "--no-default-features"
+          - name: all-features
+            args: "--all-features"
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo check --all-targets
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-${{ runner.os }}-${{ runner.arch }}
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-on-failure: true
+
+      - name: Run cargo check
+        run: cargo check --workspace --all-targets --locked ${{ matrix.features.args }}
 
   test:
-    name: Test
+    name: Test (${{ matrix.features.name }})
+    needs: fmt
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - name: default
+            args: ""
+          - name: all-features
+            args: "--all-features"
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-targets
-      - run: cargo test --doc
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-${{ runner.os }}-${{ runner.arch }}
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-on-failure: true
+
+      - name: Run tests
+        run: |
+          cargo test --workspace --all-targets --locked ${{ matrix.features.args }}
+          cargo test --workspace --doc --locked ${{ matrix.features.args }}
 
   clippy:
     name: Clippy
+    needs: fmt
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-targets --all-features -- -D warnings
 
-  doc:
-    name: Documentation
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-${{ runner.os }}-${{ runner.arch }}
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-on-failure: true
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+  docs:
+    name: Rustdoc
+    needs: fmt
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo doc --no-deps --all-features
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-${{ runner.os }}-${{ runner.arch }}
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-on-failure: true
+
+      - name: Build documentation
         env:
-          RUSTDOCFLAGS: "-D warnings"
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --all-features --locked
 
   msrv:
-    name: MSRV (1.75)
+    name: Stable floor (1.97)
+    needs: fmt
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@v5
+
+      - name: Install Rust 1.97
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.75"
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo check --all-targets
+          toolchain: "1.97"
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: msrv-${{ runner.os }}-${{ runner.arch }}
+          save-if: ${{ github.event_name != 'pull_request' }}
+          cache-on-failure: true
+
+      - name: Check the minimum supported Rust version
+        run: cargo check --workspace --all-targets --locked
+
+  package:
+    name: Package manifests
+    needs: [check, test, clippy, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build publishable package archives
+        run: |
+          cargo package -p tower-http-shield-core --locked

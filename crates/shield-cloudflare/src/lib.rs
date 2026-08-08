@@ -1,28 +1,23 @@
-//! # shield-cloudflare
+//! Offline Cloudflare Ruleset Engine exporter for portable shield rules.
 //!
-//! Offline Cloudflare Ruleset Engine expression exporter for
-//! [`shield-core`][shield_core] rule sets.
+//! Turns a [`shield_core::RuleSet`] into Cloudflare expression text, a
+//! Rulesets API-shaped JSON payload, and a human-readable
+//! [`ExportReport`]. Export is pure CPU: no network, credentials, zone IDs,
+//! Terraform, or live deploy side effects.
 //!
-//! ## What this crate does
+//! ## Pipeline
 //!
-//! - Compiles portable [`shield_core::RuleSet`] rules into Cloudflare
-//!   Ruleset Engine expressions.
-//! - Produces Rulesets API-compatible JSON.
-//! - Produces a human-readable export report.
-//! - Performs host-scoping and plan-capability checks.
-//! - Packs multiple rules into grouped `or` expressions within plan limits.
+//! 1. Filter enabled **deny** rules (allow rules are Tower-only exclusions).
+//! 2. Lower each matcher to a Cloudflare fragment ([`expression`]).
+//! 3. Emit diagnostics for unsupported or approximated operators.
+//! 4. Pack fragments into plan-sized `or` groups with optional host scope.
+//! 5. Return [`CloudflareOutput`] for review or hand-off to your deploy tooling.
 //!
-//! ## What this crate does NOT do
+//! ## Parity
 //!
-//! - Make any network calls.
-//! - Read or write Cloudflare API tokens, zone IDs, or ruleset IDs.
-//! - Deploy rules to Cloudflare.
-//! - Modify Terraform state.
-//!
-//! ## Semantic parity
-//!
-//! Cloudflare and the Tower middleware inspect differently-normalised path
-//! representations. See [`parity`] for documented differences.
+//! Edge matching and the Tower path denylist are not byte-identical. See
+//! [`parity`] for field normalisation, segment/wildcard gaps, and how the
+//! exporter reports them.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(clippy::all)]

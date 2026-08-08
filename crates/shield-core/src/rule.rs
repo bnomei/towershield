@@ -1,23 +1,27 @@
-//! Rule identifiers, groups, dispositions, and the [`Rule`] struct.
+//! Rule identity, grouping, disposition, and the declarative [`Rule`] value.
+//!
+//! Rules are pure data: collect them into a [`crate::RuleSet`], compile once,
+//! then evaluate. Built-in rules ship via [`crate::DEFAULT_RULES`]; apps add
+//! deny or allow rules with the same API.
 
 use std::fmt;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::matcher::PathMatcher;
+use crate::matcher::{CaseSensitivity, PathMatcher};
 
-/// A stable, opaque rule identifier.
+/// Stable, opaque rule identifier suitable for metrics and export reports.
 ///
-/// Identifiers follow a `group.name` convention, e.g. `"secrets.dotenv"`.
-/// They are intended to be stable across crate versions and suitable
-/// as metric labels.
+/// Convention is `group.name` (e.g. `"secrets.dotenv"`). Prefer keeping IDs
+/// stable across crate versions so dashboards and Cloudflare diagnostics
+/// remain comparable.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RuleId(pub String);
 
 impl RuleId {
-    /// Create a new rule identifier.
+    /// Wrap an owned or borrowed string as a rule identifier.
     pub fn new(id: impl Into<String>) -> Self {
         RuleId(id.into())
     }
@@ -35,10 +39,11 @@ impl From<&str> for RuleId {
     }
 }
 
-/// Logical grouping for rules.
+/// Logical category for filtering, metrics labels, and export organisation.
 ///
-/// Groups are used for metrics, filtering, and Cloudflare export organisation.
-/// `Custom` accepts a string label so applications can define their own groups.
+/// Built-in variants mirror the groups in [`crate::DEFAULT_RULES`]. Use
+/// [`RuleGroup::Custom`] for application-specific rules. Disable whole CMS
+/// groups (WordPress, Joomla, …) when the app legitimately serves those paths.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
@@ -49,27 +54,27 @@ pub enum RuleGroup {
     SourceControl,
     /// Cloud credentials (`.aws/credentials`, GCP keys, …).
     CloudCredentials,
-    /// SSH keys and certificates.
+    /// SSH private keys, certs, and common key path probes.
     SshKeys,
     /// Build and deployment manifests (`Dockerfile`, `terraform.tfstate`, …).
     BuildManifests,
-    /// Common framework configuration files.
+    /// Framework config that often leaks credentials or internals.
     FrameworkConfig,
-    /// WordPress probe paths.
+    /// WordPress admin, content, and login probe paths.
     WordPress,
-    /// Joomla probe paths.
+    /// Joomla administrator and install probe paths.
     Joomla,
-    /// Drupal probe paths.
+    /// Drupal sites/default and install/update probes.
     Drupal,
-    /// Magento probe paths.
+    /// Magento downloader, shell, and export probes.
     Magento,
-    /// PHP web-shell filename probes.
+    /// High-confidence PHP web-shell filename probes.
     PhpShell,
-    /// Debug, profiler, metrics, actuator, and server-status probes.
+    /// Debug endpoints, profilers, actuators, server-status.
     Debug,
-    /// AI and developer-tool credential/configuration probes.
+    /// AI / developer-tool credential and config probes.
     AiTools,
-    /// Application-defined custom group.
+    /// Application-defined group label (string is the Display form).
     #[cfg_attr(feature = "serde", serde(untagged))]
     Custom(String),
 }
@@ -95,55 +100,71 @@ impl fmt::Display for RuleGroup {
     }
 }
 
-/// Whether a rule blocks or permits a matching request.
+/// Whether a matching path is blocked or explicitly permitted.
+///
+/// Evaluation is two-pass: any matching [`Allow`](Self::Allow) short-circuits
+/// to allow before deny rules are considered. Use allow rules as narrow
+/// exclusions for legitimate paths that overlap a denylist entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum RuleDisposition {
-    /// Block the request (return the configured error response).
+    /// Reject the request when the matcher hits (default).
     #[default]
     Deny,
-    /// Allow the request (override a preceding deny rule).
+    /// Permit the request even if a deny rule would also match.
     Allow,
 }
 
-/// A single path-matching rule.
+/// One declarative path rule: identity, disposition, matcher, and flags.
 ///
-/// Rules are declarative data. They are collected into a [`crate::RuleSet`]
-/// and compiled into a [`crate::CompiledRuleSet`] once at startup.
+/// Collect into a [`crate::RuleSet`] and compile once at startup. Constructors
+/// [`Rule::deny`] / [`Rule::allow`] produce enabled, non-built-in rules with
+/// case-**insensitive** matching; call [`Rule::with_case_sensitivity`] when
+/// the router distinguishes path case.
 ///
 /// # Versioning
 ///
-/// Built-in rule additions and removals are considered behavioural changes
-/// and follow semantic versioning: additions may occur in minor versions,
-/// removals require a major version bump.
+/// Built-in rule additions are minor-version behavioural changes (more paths
+/// may block). Removals or weakenings require a major version bump.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Rule {
     /// Stable identifier, e.g. `"secrets.dotenv"`.
     pub id: RuleId,
-    /// Logical group / category.
+    /// Logical group / category for metrics and export packing.
     pub group: RuleGroup,
-    /// Human-readable description.
+    /// Human-readable description (not shown to HTTP clients).
     pub description: String,
-    /// Allow or deny.
+    /// Allow (exclusion) or deny (block).
     pub disposition: RuleDisposition,
-    /// How the path is matched.
+    /// Comparison operator and pattern.
     pub matcher: PathMatcher,
-    /// `true` = this is a built-in rule shipped with the crate.
+    /// Case policy for this rule only.
+    ///
+    /// Defaults to insensitive so mixed-case probe variants still hit.
+    #[cfg_attr(feature = "serde", serde(default = "default_case_sensitivity"))]
+    pub case_sensitivity: CaseSensitivity,
+    /// `true` when the rule shipped in the crate built-in set.
     #[cfg_attr(feature = "serde", serde(default))]
     pub builtin: bool,
-    /// `false` means this rule is loaded but never evaluated.
+    /// When `false`, the rule is kept for serialization but skipped at compile.
     #[cfg_attr(feature = "serde", serde(default = "default_true"))]
     pub enabled: bool,
 }
 
+#[cfg(feature = "serde")]
 fn default_true() -> bool {
     true
 }
 
+#[cfg(feature = "serde")]
+fn default_case_sensitivity() -> CaseSensitivity {
+    CaseSensitivity::Insensitive
+}
+
 impl Rule {
-    /// Create a new deny rule with `enabled = true`.
+    /// Build an enabled deny rule (case-insensitive, not marked built-in).
     pub fn deny(
         id: impl Into<RuleId>,
         group: RuleGroup,
@@ -156,12 +177,15 @@ impl Rule {
             description: description.into(),
             disposition: RuleDisposition::Deny,
             matcher,
+            case_sensitivity: CaseSensitivity::Insensitive,
             builtin: false,
             enabled: true,
         }
     }
 
-    /// Create a new allow rule with `enabled = true`.
+    /// Build an enabled allow rule used as a denylist exclusion.
+    ///
+    /// Allow disposition wins over every deny rule for the same path.
     pub fn allow(
         id: impl Into<RuleId>,
         group: RuleGroup,
@@ -174,15 +198,44 @@ impl Rule {
             description: description.into(),
             disposition: RuleDisposition::Allow,
             matcher,
+            case_sensitivity: CaseSensitivity::Insensitive,
             builtin: false,
             enabled: true,
         }
     }
 
-    /// Mark this rule as a built-in rule.
+    /// Mark the rule as shipped with the crate (sets [`Rule::builtin`]).
     #[must_use]
     pub fn builtin(mut self) -> Self {
         self.builtin = true;
         self
+    }
+
+    /// Override the default case-insensitive policy for this rule only.
+    #[must_use]
+    pub fn with_case_sensitivity(mut self, case_sensitivity: CaseSensitivity) -> Self {
+        self.case_sensitivity = case_sensitivity;
+        self
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialized_rules_without_case_policy_remain_insensitive() {
+        let json = r#"{
+            "id": "test.legacy",
+            "group": "secrets",
+            "description": "legacy rule",
+            "disposition": "deny",
+            "matcher": { "match": "exact", "value": "/Admin" },
+            "builtin": false,
+            "enabled": true
+        }"#;
+
+        let rule: Rule = serde_json::from_str(json).unwrap();
+        assert_eq!(rule.case_sensitivity, CaseSensitivity::Insensitive);
     }
 }

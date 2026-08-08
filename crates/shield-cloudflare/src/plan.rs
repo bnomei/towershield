@@ -1,40 +1,37 @@
-//! Cloudflare plan capabilities.
+//! Plan-tier limits that constrain expression packing and regex export.
+//!
+//! Limits are operator-facing budgets for offline generation, not live
+//! account queries. Override fields when Cloudflare publishes new caps.
 
-/// Target Cloudflare plan level.
+/// Named Cloudflare plan tier used to select default capability budgets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CloudflarePlan {
-    /// Free plan.
+    /// Free plan (smallest expression and rule budgets; no regex).
     Free,
     /// Pro plan.
     Pro,
-    /// Business plan.
+    /// Business plan (regex `matches` available).
     Business,
-    /// Enterprise plan.
+    /// Enterprise plan (largest documented budgets).
     Enterprise,
 }
 
-/// Capability profile for a Cloudflare target.
+/// Regex support and packing budgets for a Cloudflare target environment.
 ///
-/// Defaults match conservative estimates for the **Free** plan as
-/// documented at <https://developers.cloudflare.com/waf/custom-rules/>
-/// (April 2026). Call [`CloudflareCapabilities::for_plan`] for other plans,
-/// or override any field if Cloudflare's published limits change.
+/// Defaults for [`CloudflarePlan::Free`] follow public custom-rules docs
+/// (April 2026). See <https://developers.cloudflare.com/waf/custom-rules/>.
 #[derive(Debug, Clone)]
 pub struct CloudflareCapabilities {
-    /// Whether the `matches` regex operator is available.
+    /// Whether the `matches` regex operator may be emitted.
     pub regex: bool,
-    /// Maximum number of custom rules in the phase.
+    /// Maximum number of custom rules the exporter may produce.
     pub maximum_rules: usize,
-    /// Maximum expression length in characters.
+    /// Maximum characters per packed expression.
     pub maximum_expression_length: usize,
 }
 
 impl CloudflareCapabilities {
-    /// Return capability defaults for the given plan.
-    ///
-    /// Rule counts and expression limits are sourced from Cloudflare
-    /// documentation as of April 2026. Override fields as needed when
-    /// Cloudflare changes limits.
+    /// Documented default budgets for `plan` (override fields if limits change).
     pub fn for_plan(plan: CloudflarePlan) -> Self {
         match plan {
             CloudflarePlan::Free => CloudflareCapabilities {

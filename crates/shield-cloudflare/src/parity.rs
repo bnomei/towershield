@@ -1,14 +1,19 @@
-//! Documented parity gaps between the Tower middleware and Cloudflare.
+//! Known semantic gaps between the Tower path denylist and Cloudflare edge rules.
+//!
+//! Export is best-effort translation, not a proof of identical blocking.
+//! Operators should treat edge rules as a coarse first filter and keep the
+//! Tower middleware as the authoritative in-process denylist.
 //!
 //! # Known differences
 //!
 //! | Concern | Tower middleware | Cloudflare |
 //! |---|---|---|
-//! | Path field | `http::Uri::path()` – decoded by the HTTP stack | `http.request.uri.path` – Cloudflare-normalised |
-//! | Percent encoding | One-pass decode in [`shield_core::InspectionPath`] | CF may decode or not depending on field |
-//! | Segment matcher | Split on `/`, compare each segment | Approximated as `contains "/seg/"` – may produce false positives |
-//! | Case | Explicit lowercase before compare | Explicit `lower()` wrapper |
-//! | Trailing slash | Preserved | May be stripped by CF normalisation |
+//! | Path field | `http::Uri::path()` + [`shield_core::InspectionPath`] | `http.request.uri.path` (CF-normalised) |
+//! | Percent encoding | Single-pass decode in core | Field-dependent CF handling |
+//! | Segment matcher | Exact `/`-delimited segment equality | Approximated as `contains "/seg/"` (FP/FN risk) |
+//! | Wildcard matcher | `*` in-segment; `**` crosses `/` | Skipped — no exact CF encoding |
+//! | Case | Explicit lowercased inspection form | Explicit `lower()` in expressions |
+//! | Trailing slash | Preserved | May be altered by CF normalisation |
 //!
-//! Parity is not guaranteed byte-for-byte. The exporter reports semantic
-//! differences in [`crate::output::ExportReport::diagnostics`].
+//! Soft gaps surface in [`crate::output::ExportReport::diagnostics`] when a
+//! rule is skipped or only approximated.

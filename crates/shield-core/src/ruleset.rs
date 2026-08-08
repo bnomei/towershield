@@ -1,29 +1,39 @@
-//! [`RuleSet`] and [`CompiledRuleSet`].
+//! Rule-set assembly, compile-time validation, and per-request evaluation.
+//!
+//! [`RuleSet`] is the serializable, mutable collection. [`CompiledRuleSet`]
+//! is the startup-validated form used on the request path: disabled rules are
+//! dropped, matchers are normalised for case policy, and regex patterns fail
+//! fast via [`CompileError`].
 
 use crate::{
+    ShieldDecision, ShieldMatch,
     inspection::InspectionPath,
     matcher::{CaseSensitivity, MatchKind, PathMatcher},
     rule::{Rule, RuleDisposition},
-    ShieldDecision, ShieldMatch,
 };
+use std::sync::Arc;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "regex")]
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 
 use thiserror::Error;
 
-/// Schema version discriminant embedded in serialised rule files.
+#[cfg(all(feature = "rayon", feature = "regex"))]
+const PARALLEL_REGEX_COMPILE_THRESHOLD: usize = 256;
+
+/// Schema version embedded in serialised rule files.
 ///
-/// Increment when the serialisation format changes in a breaking way.
+/// Bump when the on-disk / JSON shape of [`RuleSet`] changes incompatibly.
+/// Rule *content* changes are covered by crate semver, not this field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RuleSchemaVersion(pub u32);
 
 impl RuleSchemaVersion {
-    /// Current supported version.
+    /// Schema version understood by this crate build.
     pub const CURRENT: Self = RuleSchemaVersion(1);
 }
 
@@ -33,88 +43,137 @@ impl Default for RuleSchemaVersion {
     }
 }
 
-/// A versioned, ordered collection of [`Rule`]s.
+/// Versioned, ordered collection of declarative [`Rule`] values.
 ///
-/// Call [`RuleSet::compile`] to produce a [`CompiledRuleSet`] ready for
-/// per-request evaluation.
+/// This is the authoring and serialization form. Call [`RuleSet::compile`]
+/// once at process startup (or after a config reload) to obtain a
+/// [`CompiledRuleSet`] for evaluation.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RuleSet {
-    /// Schema version for forwards-compatibility checks.
+    /// Schema version for forwards-compatibility checks by loaders.
     #[cfg_attr(feature = "serde", serde(rename = "schema-version"))]
     pub schema_version: RuleSchemaVersion,
-    /// Ordered list of rules. Evaluation follows list order; the first
-    /// matching `Allow` rule wins, then the first matching `Deny` rule.
+    /// Ordered rules. Within each disposition pass, earlier list entries win.
     pub rules: Vec<Rule>,
 }
 
 impl RuleSet {
-    /// Create an empty rule set with the current schema version.
+    /// Empty rule set at [`RuleSchemaVersion::CURRENT`].
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Append a rule.
+    /// Append a rule and return `self` for chaining.
     pub fn push(mut self, rule: Rule) -> Self {
         self.rules.push(rule);
         self
     }
 
-    /// Compile all enabled rules into a [`CompiledRuleSet`].
+    /// Validate and lower all **enabled** rules into a [`CompiledRuleSet`].
+    ///
+    /// Disabled rules are omitted. Invalid regex patterns surface as
+    /// [`CompileError::InvalidRegex`]. With the optional `rayon` feature,
+    /// large custom sets compile in parallel; normal-sized sets stay
+    /// sequential to avoid thread-pool scheduling overhead.
     pub fn compile(self) -> Result<CompiledRuleSet, CompileError> {
-        let mut compiled = Vec::with_capacity(self.rules.len());
-        for rule in self.rules {
-            if !rule.enabled {
-                continue;
+        #[cfg(feature = "rayon")]
+        let lowered = {
+            use rayon::prelude::*;
+
+            if should_compile_in_parallel(&self.rules) {
+                // Collect every result in indexed order before propagating an
+                // error so multiple invalid regexes remain deterministic.
+                self.rules
+                    .into_par_iter()
+                    .map(lower_rule)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                self.rules
+                    .into_iter()
+                    .map(lower_rule)
+                    .collect::<Result<Vec<_>, _>>()?
             }
-            let inner = CompiledMatcher::new(&rule.matcher)?;
-            compiled.push(CompiledRule {
-                id: rule.id,
-                group: rule.group,
-                description: rule.description,
-                disposition: rule.disposition,
-                match_kind: MatchKind::from(&rule.matcher),
-                case: rule_case(&rule.matcher),
-                inner,
-                builtin: rule.builtin,
-            });
+        };
+
+        #[cfg(not(feature = "rayon"))]
+        let lowered = self
+            .rules
+            .into_iter()
+            .map(lower_rule)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let allow_count = lowered
+            .iter()
+            .flatten()
+            .filter(|(disposition, _)| *disposition == RuleDisposition::Allow)
+            .count();
+        let deny_count = lowered.iter().flatten().count() - allow_count;
+        let mut allow_rules = Vec::with_capacity(allow_count);
+        let mut deny_rules = Vec::with_capacity(deny_count);
+        for (disposition, compiled) in lowered.into_iter().flatten() {
+            match disposition {
+                RuleDisposition::Allow => allow_rules.push(compiled),
+                RuleDisposition::Deny => deny_rules.push(compiled),
+            }
         }
-        Ok(CompiledRuleSet { rules: compiled })
+        Ok(CompiledRuleSet {
+            allow_rules: allow_rules.into(),
+            deny_rules: deny_rules.into(),
+        })
     }
 }
 
-/// Error returned when a rule set cannot be compiled.
+#[cfg(all(feature = "rayon", feature = "regex"))]
+fn should_compile_in_parallel(rules: &[Rule]) -> bool {
+    rules
+        .iter()
+        .filter(|rule| rule.enabled && matches!(&rule.matcher, PathMatcher::Regex(_)))
+        .take(PARALLEL_REGEX_COMPILE_THRESHOLD)
+        .count()
+        == PARALLEL_REGEX_COMPILE_THRESHOLD
+}
+
+#[cfg(all(feature = "rayon", not(feature = "regex")))]
+fn should_compile_in_parallel(_rules: &[Rule]) -> bool {
+    false
+}
+
+fn lower_rule(rule: Rule) -> Result<Option<(RuleDisposition, CompiledRule)>, CompileError> {
+    if !rule.enabled {
+        return Ok(None);
+    }
+    let match_kind = MatchKind::from(&rule.matcher);
+    let compiled = CompiledRule {
+        id: rule.id,
+        group: rule.group,
+        match_kind,
+        case: rule.case_sensitivity,
+        inner: CompiledMatcher::new(rule.matcher, rule.case_sensitivity)?,
+        builtin: rule.builtin,
+    };
+    Ok(Some((rule.disposition, compiled)))
+}
+
+/// Failure to lower a [`RuleSet`] into a [`CompiledRuleSet`].
+///
+/// Today this is only raised for invalid regex patterns when the `regex`
+/// feature is enabled; other matcher kinds always compile.
 #[derive(Debug, Error)]
 pub enum CompileError {
-    /// A regex pattern is invalid.
+    /// A [`PathMatcher::Regex`] pattern failed to compile.
     #[error("invalid regex in rule: {0}")]
     InvalidRegex(String),
 }
 
-// Determine the default case sensitivity for a matcher (all built-in
-// matchers default to Insensitive to catch mixed-case probe variants).
-// Custom rules carry their own `CaseSensitivity` field; here we embed it
-// in the PathMatcher for simplicity.  The Rule struct would carry it
-// separately if desired; for now matchers are always insensitive unless
-// the caller explicitly uses a `Sensitive` wrapper.  We treat it as
-// insensitive by default in the matching engine.
-fn rule_case(_matcher: &PathMatcher) -> CaseSensitivity {
-    // All built-in rules are case-insensitive.  Custom rules can set this
-    // explicitly when constructing their Rule.  For now the field is
-    // always Insensitive – a future extension point.
-    CaseSensitivity::Insensitive
-}
-
-// Internal compiled form of one rule.
+/// One rule after compile-time normalisation (case fold, regex build).
 #[derive(Debug, Clone)]
 struct CompiledRule {
     id: crate::rule::RuleId,
     group: crate::rule::RuleGroup,
-    #[allow(dead_code)]
-    description: String,
-    disposition: RuleDisposition,
     match_kind: MatchKind,
-    #[allow(dead_code)]
     case: CaseSensitivity,
     inner: CompiledMatcher,
     builtin: bool,
@@ -133,19 +192,28 @@ enum CompiledMatcher {
 }
 
 impl CompiledMatcher {
-    fn new(m: &PathMatcher) -> Result<Self, CompileError> {
+    fn new(m: PathMatcher, case: CaseSensitivity) -> Result<Self, CompileError> {
+        let normalize = |mut value: String| {
+            if case == CaseSensitivity::Insensitive {
+                value.make_ascii_lowercase();
+            }
+            value
+        };
         Ok(match m {
-            PathMatcher::Exact(s) => CompiledMatcher::Exact(s.to_ascii_lowercase()),
-            PathMatcher::Prefix(s) => CompiledMatcher::Prefix(s.to_ascii_lowercase()),
-            PathMatcher::Suffix(s) => CompiledMatcher::Suffix(s.to_ascii_lowercase()),
-            PathMatcher::Segment(s) => CompiledMatcher::Segment(s.to_ascii_lowercase()),
-            PathMatcher::Contains(s) => CompiledMatcher::Contains(s.to_ascii_lowercase()),
+            PathMatcher::Exact(s) => CompiledMatcher::Exact(normalize(s)),
+            PathMatcher::Prefix(s) => CompiledMatcher::Prefix(normalize(s)),
+            PathMatcher::Suffix(s) => CompiledMatcher::Suffix(normalize(s)),
+            PathMatcher::Segment(s) => CompiledMatcher::Segment(normalize(s)),
+            PathMatcher::Contains(s) => CompiledMatcher::Contains(normalize(s)),
             PathMatcher::Wildcard(s) => {
-                CompiledMatcher::Wildcard(WildcardPattern::compile(&s.to_ascii_lowercase()))
+                CompiledMatcher::Wildcard(WildcardPattern::compile(normalize(s)))
             }
             #[cfg(feature = "regex")]
             PathMatcher::Regex(s) => {
-                let re = Regex::new(s)
+                let re = RegexBuilder::new(&s)
+                    .case_insensitive(case == CaseSensitivity::Insensitive)
+                    .unicode(false)
+                    .build()
                     .map_err(|e| CompileError::InvalidRegex(format!("{}: {}", s, e)))?;
                 CompiledMatcher::Regex(re)
             }
@@ -153,8 +221,8 @@ impl CompiledMatcher {
     }
 
     fn matches(&self, path: &str) -> bool {
-        // All compiled values are already lowercased; path must be lowercased
-        // by the caller (InspectionPath::decoded_lower).
+        // Pattern strings were case-folded at compile; caller must pass the
+        // form from InspectionPath::for_case so both sides agree.
         match self {
             CompiledMatcher::Exact(v) => path == v.as_str(),
             CompiledMatcher::Prefix(v) => path.starts_with(v.as_str()),
@@ -168,34 +236,36 @@ impl CompiledMatcher {
     }
 }
 
-/// A compiled rule set ready for per-request path evaluation.
+/// Startup-compiled rules ready for per-request evaluation.
 ///
-/// Cloning is cheap because all per-rule data is `Arc`-backed indirectly
-/// through `String` values (which are already cloned on copy).
+/// Cheap to clone: compiled allow and deny tables are shared via [`Arc`].
 #[derive(Debug, Clone)]
 pub struct CompiledRuleSet {
-    rules: Vec<CompiledRule>,
+    allow_rules: Arc<[CompiledRule]>,
+    deny_rules: Arc<[CompiledRule]>,
 }
 
 impl CompiledRuleSet {
-    /// Evaluate a decoded, lowercased path against the rule set.
+    /// Decide allow/block for a path that has already been inspected.
     ///
-    /// Allow rules take precedence: the first matching allow rule returns
-    /// `ShieldDecision::Allow`. Then the first matching deny rule returns
-    /// `ShieldDecision::Block`. If no rule matches, the request is allowed.
-    pub fn evaluate(&self, path: &InspectionPath) -> ShieldDecision {
-        let lower = &path.decoded_lower;
-
-        // Pass 1 – allow rules take absolute precedence.
-        for rule in &self.rules {
-            if rule.disposition == RuleDisposition::Allow && rule.inner.matches(lower) {
+    /// Evaluation order:
+    /// 1. First matching **allow** → [`ShieldDecision::Allow`]
+    /// 2. First matching **deny** → [`ShieldDecision::Block`]
+    /// 3. No match → allow (fail open for unmatched application traffic)
+    ///
+    /// The request body and headers are never consulted; only
+    /// [`InspectionPath`] forms participate.
+    pub fn evaluate(&self, path: &InspectionPath<'_>) -> ShieldDecision {
+        // Pass 1 – allow rules are absolute exclusions.
+        for rule in self.allow_rules.iter() {
+            if rule.inner.matches(path.for_case(rule.case)) {
                 return ShieldDecision::Allow;
             }
         }
 
         // Pass 2 – deny rules.
-        for rule in &self.rules {
-            if rule.disposition == RuleDisposition::Deny && rule.inner.matches(lower) {
+        for rule in self.deny_rules.iter() {
+            if rule.inner.matches(path.for_case(rule.case)) {
                 return ShieldDecision::Block(ShieldMatch {
                     rule_id: rule.id.clone(),
                     group: rule.group.clone(),
@@ -209,51 +279,35 @@ impl CompiledRuleSet {
     }
 }
 
-// We need CompiledRuleSet to be Clone but Regex does not implement Clone.
-// Work around this by storing compiled rules in an Arc<Vec<_>> so that
-// clone is O(1). For simplicity we store the raw PathMatcher alongside and
-// recompile on clone – but that is expensive. Instead, wrap CompiledRule in
-// Arc. Add the necessary bounds.
-//
-// Actually: `Regex` implements Clone in `regex` ≥1. Check.
-// According to docs.rs/regex, Regex is Clone. Good, no workaround needed.
-
-/// Check whether `segment` appears as a complete path segment in `path`.
+/// True when `segment` equals a complete `/`-delimited component of `path`.
 ///
-/// A segment is a `/`-delimited component. The segment value must not
-/// include slashes.
+/// The segment value itself must not contain `/`.
 fn segment_match(path: &str, segment: &str) -> bool {
-    // Iterate over segments by splitting on '/'
     path.split('/').any(|s| s == segment)
 }
 
 // ── Wildcard pattern ────────────────────────────────────────────────────────
 
-/// A compiled wildcard pattern.
+/// Compiled `*` / `**` pattern used by [`PathMatcher::Wildcard`].
 ///
-/// - `*` matches any run of characters that does not include `/`.
-/// - `**` matches any run of characters including `/`.
+/// - `*` – any run of characters that does not include `/`
+/// - `**` – any run of characters including `/`
 #[derive(Debug, Clone)]
 struct WildcardPattern {
-    /// Pattern tokens.
     tokens: Vec<WildToken>,
-    /// The original lowercased pattern (kept for `Debug`).
-    #[allow(dead_code)]
-    src: String,
 }
 
 #[derive(Debug, Clone)]
 enum WildToken {
-    /// Literal string fragment.
     Literal(String),
-    /// `*` – any non-`/` characters.
+    /// `*` – non-slash run.
     Star,
-    /// `**` – any characters including `/`.
+    /// `**` – any run, may cross `/`.
     DoubleStar,
 }
 
 impl WildcardPattern {
-    fn compile(pattern: &str) -> Self {
+    fn compile(pattern: String) -> Self {
         let mut tokens = Vec::new();
         let mut lit = String::new();
         let mut chars = pattern.chars().peekable();
@@ -275,10 +329,7 @@ impl WildcardPattern {
         if !lit.is_empty() {
             tokens.push(WildToken::Literal(lit));
         }
-        WildcardPattern {
-            tokens,
-            src: pattern.to_owned(),
-        }
+        WildcardPattern { tokens }
     }
 
     fn matches(&self, path: &str) -> bool {
@@ -286,7 +337,7 @@ impl WildcardPattern {
     }
 }
 
-/// Recursive wildcard matcher.
+/// Recursive backtracking matcher for [`WildcardPattern`] tokens.
 fn wildcard_match(tokens: &[WildToken], path: &str) -> bool {
     if tokens.is_empty() {
         return path.is_empty();
@@ -300,7 +351,7 @@ fn wildcard_match(tokens: &[WildToken], path: &str) -> bool {
             }
         }
         WildToken::Star => {
-            // Match any prefix that does not contain '/'
+            // Grow a non-`/` prefix until the remaining tokens match the tail.
             for n in 0..=path.len() {
                 let (head, tail) = path.split_at(n);
                 if head.contains('/') {
@@ -313,9 +364,8 @@ fn wildcard_match(tokens: &[WildToken], path: &str) -> bool {
             false
         }
         WildToken::DoubleStar => {
-            // Match any prefix (including those with '/')
+            // Same, but the prefix may include `/` (split only on char boundaries).
             for n in 0..=path.len() {
-                // Ensure we only split at valid char boundaries.
                 if !path.is_char_boundary(n) {
                     continue;
                 }
@@ -333,7 +383,7 @@ mod tests {
     use super::*;
     use crate::defaults::DEFAULT_RULES;
     use crate::inspection::InspectionPath;
-    use crate::matcher::PathMatcher;
+    use crate::matcher::{CaseSensitivity, PathMatcher};
     use crate::rule::{Rule, RuleGroup};
 
     fn eval(rules: Vec<Rule>, path: &str) -> ShieldDecision {
@@ -496,6 +546,57 @@ mod tests {
             eval(vec![deny_exact("/.env")], "/.ENV"),
             ShieldDecision::Block(_)
         ));
+    }
+
+    #[test]
+    fn case_sensitive_rule_preserves_case() {
+        let rule = deny_exact("/Admin").with_case_sensitivity(CaseSensitivity::Sensitive);
+
+        assert!(matches!(
+            eval(vec![rule.clone()], "/Admin"),
+            ShieldDecision::Block(_)
+        ));
+        assert_eq!(eval(vec![rule], "/admin"), ShieldDecision::Allow);
+    }
+
+    #[cfg(feature = "regex")]
+    #[test]
+    fn regex_uses_ascii_case_insensitivity() {
+        let rule = Rule::deny(
+            "t.regex",
+            RuleGroup::Secrets,
+            "test",
+            PathMatcher::Regex(r"^/admin/[a-z]+$".into()),
+        );
+        assert!(matches!(
+            eval(vec![rule], "/ADMIN/Users"),
+            ShieldDecision::Block(_)
+        ));
+    }
+
+    #[cfg(all(feature = "rayon", feature = "regex"))]
+    #[test]
+    fn parallel_regex_compile_preserves_rule_order() {
+        let rules = (0..PARALLEL_REGEX_COMPILE_THRESHOLD).fold(RuleSet::new(), |rules, index| {
+            rules.push(Rule::deny(
+                crate::RuleId::new(format!("t.regex_{index}")),
+                RuleGroup::Secrets,
+                "test",
+                PathMatcher::Regex(if index < 2 {
+                    r"^/match$".into()
+                } else {
+                    format!(r"^/no-match/{index}$")
+                }),
+            ))
+        });
+        let decision = rules
+            .compile()
+            .unwrap()
+            .evaluate(&InspectionPath::new("/match"));
+        let ShieldDecision::Block(matched) = decision else {
+            panic!("expected block")
+        };
+        assert_eq!(matched.rule_id, crate::RuleId::new("t.regex_0"));
     }
 
     #[test]

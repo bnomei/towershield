@@ -1,23 +1,13 @@
-//! Axum integration example.
+//! Axum placement example for the path-denylist middleware.
 //!
-//! This example demonstrates two usage patterns:
+//! Preferred pattern: wrap the **entire** `Router` with
+//! `ShieldLayer::default().layer(router)` so every request is evaluated
+//! before Axum route matching. `Router::layer(ShieldLayer…)` is weaker:
+//! unmatched probes never enter the layer.
 //!
-//! 1. **Pre-router wrapping** (preferred): wraps the entire `axum::Router`
-//!    so the shield evaluates requests *before* Axum routing. Blocked
-//!    paths never reach route matching or application handlers.
-//!
-//! 2. **`Router::layer` wrapping** (limited): applies the shield as an
-//!    axum router layer. Because Axum applies `Router::layer` middleware
-//!    after route matching, requests that do *not* match a route (including
-//!    scanner probes) are **not** intercepted by the shield. Only use this
-//!    if you exclusively want to protect matched routes.
-//!
-//! Run with:
-//! ```not_rust
-//! cargo run --example axum --package shield-tower
-//! ```
+//! Run: `cargo run --example axum --package tower-http-shield`
 
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use http::StatusCode;
 use shield_tower::ShieldLayer;
 use tower::Layer;
