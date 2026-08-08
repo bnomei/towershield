@@ -6,15 +6,15 @@
 
 use crate::service::ShieldService;
 use http::{Response, StatusCode};
-use shield_core::{CompiledRuleSet, Rule, RuleSet};
 use std::sync::Arc;
 use tower_layer::Layer;
+use towershield_core::{CompiledRuleSet, Rule, RuleSet};
 
 /// Client-facing response shape for blocked scanner probes.
 ///
 /// Always empty-bodied with `content-length: 0`. Defaults to **404** so
 /// probes learn nothing about which path was denylisted. Never embeds
-/// [`shield_core::ShieldMatch`] details in the response.
+/// [`towershield_core::ShieldMatch`] details in the response.
 #[derive(Debug, Clone)]
 pub struct BlockedResponse {
     status: StatusCode,
@@ -57,18 +57,18 @@ impl BlockedResponse {
 /// Implementations must not log query strings, cookies, authorization
 /// headers, bodies, or secrets discovered in the path.
 pub type OnBlock =
-    Arc<dyn Fn(&shield_core::ShieldMatch, &http::Method, &str) + Send + Sync + 'static>;
+    Arc<dyn Fn(&towershield_core::ShieldMatch, &http::Method, &str) + Send + Sync + 'static>;
 
 /// Fluent configuration for a [`ShieldLayer`] before rule compilation.
 ///
-/// Defaults: built-in [`DEFAULT_RULES`][shield_core::DEFAULT_RULES], 404
+/// Defaults: built-in [`DEFAULT_RULES`][towershield_core::DEFAULT_RULES], 404
 /// blocked responses, no `on_block` callback.
 ///
 /// # Example
 ///
 /// ```rust
-/// use shield_tower::ShieldLayer;
-/// use shield_core::{Rule, RuleGroup, PathMatcher, DEFAULT_RULES};
+/// use towershield::ShieldLayer;
+/// use towershield_core::{Rule, RuleGroup, PathMatcher, DEFAULT_RULES};
 ///
 /// let layer = ShieldLayer::builder()
 ///     .with_ruleset(
@@ -113,7 +113,7 @@ impl ShieldBuilder {
     /// Append one rule onto the builder's current set.
     pub fn add_rule(mut self, rule: Rule) -> Self {
         self.rules = BuilderRules::Custom(match self.rules {
-            BuilderRules::Builtin => shield_core::DEFAULT_RULES.get().push(rule),
+            BuilderRules::Builtin => towershield_core::DEFAULT_RULES.get().push(rule),
             BuilderRules::Custom(ruleset) => ruleset.push(rule),
         });
         self
@@ -133,7 +133,7 @@ impl ShieldBuilder {
     /// query strings, authorization headers, cookies, bodies, or secrets.
     pub fn on_block(
         mut self,
-        f: impl Fn(&shield_core::ShieldMatch, &http::Method, &str) + Send + Sync + 'static,
+        f: impl Fn(&towershield_core::ShieldMatch, &http::Method, &str) + Send + Sync + 'static,
     ) -> Self {
         self.on_block = Some(Arc::new(f));
         self
@@ -150,10 +150,10 @@ impl ShieldBuilder {
         self.try_build().expect("failed to compile shield rule set")
     }
 
-    /// Compile rules without panicking; returns [`CompileError`][shield_core::ruleset::CompileError].
-    pub fn try_build(self) -> Result<ShieldLayer, shield_core::ruleset::CompileError> {
+    /// Compile rules without panicking; returns [`CompileError`][towershield_core::ruleset::CompileError].
+    pub fn try_build(self) -> Result<ShieldLayer, towershield_core::ruleset::CompileError> {
         let compiled = match self.rules {
-            BuilderRules::Builtin => shield_core::DEFAULT_RULES.compiled(),
+            BuilderRules::Builtin => towershield_core::DEFAULT_RULES.compiled(),
             BuilderRules::Custom(ruleset) => ruleset.compile()?,
         };
         Ok(ShieldLayer {
@@ -198,7 +198,7 @@ impl std::fmt::Debug for LayerInner {
 ///
 /// ```rust,no_run
 /// use tower::Layer;
-/// use shield_tower::ShieldLayer;
+/// use towershield::ShieldLayer;
 /// // let app = ShieldLayer::default().layer(router);
 /// ```
 ///

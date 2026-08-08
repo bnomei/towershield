@@ -10,7 +10,7 @@ Please **do not** open a public GitHub issue for security vulnerabilities.
 
 Instead, report vulnerabilities privately by emailing the repository
 maintainers or using GitHub's private security advisory feature:
-<https://github.com/bnomei/tower-http-shield/security/advisories/new>
+<https://github.com/bnomei/towershield/security/advisories/new>
 
 Include:
 

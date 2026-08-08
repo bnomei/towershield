@@ -1,5 +1,5 @@
 [package]
-name = "tower-http-shield-core"
+name = "towershield-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,13 +8,13 @@ repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
 authors.workspace = true
-documentation = "https://docs.rs/tower-http-shield-core"
+documentation = "https://docs.rs/towershield-core"
 description = "Portable path-shield rule model: rules, matching, serialization."
 keywords = ["security", "shield", "middleware", "http", "firewall"]
 categories = ["web-programming", "network-programming"]
 
 [lib]
-name = "shield_core"
+name = "towershield_core"
 
 [features]
 default = ["serde"]

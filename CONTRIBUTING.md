@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing to `tower-http-shield`!
+Thank you for your interest in contributing to `towershield`!
 
 ## How to contribute
 
@@ -41,7 +41,7 @@ Rules must:
 Adding a built-in rule is a **minor** version bump because it may block a
 previously-allowed path. See `CHANGELOG.md` for the full versioning policy.
 
-Run `cargo bench -p tower-http-shield-core --bench core_checker` when changing path
+Run `cargo bench -p towershield-core --bench core_checker` when changing path
 inspection or matching. The benchmark reports time, allocation count, total
 bytes, and maximum live bytes for representative request batches.
 
@@ -61,10 +61,10 @@ bytes, and maximum live bytes for representative request batches.
 3. Run all local checks and fully package the core crate:
 
    ```bash
-   cargo package -p tower-http-shield-core --locked
+   cargo package -p towershield-core --locked
    ```
-4. Publish `tower-http-shield-core` before packaging and publishing the
-   dependent `tower-http-shield` and `tower-http-shield-cloudflare` crates.
+4. Publish `towershield-core` before packaging and publishing the dependent
+   `towershield` and `towershield-cloudflare` crates.
 5. Create a signed version tag after the published packages are verified.
 
 ## Security issues

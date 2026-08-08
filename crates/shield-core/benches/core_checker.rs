@@ -2,8 +2,8 @@ use std::sync::LazyLock;
 
 use divan::{AllocProfiler, Bencher, black_box};
 #[cfg(feature = "regex")]
-use shield_core::CaseSensitivity;
-use shield_core::{
+use towershield_core::CaseSensitivity;
+use towershield_core::{
     CompiledRuleSet, DEFAULT_RULES, InspectionPath, PathMatcher, Rule, RuleGroup, RuleId, RuleSet,
 };
 

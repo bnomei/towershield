@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Prefer the narrowest operator that still covers the probe: `Exact` and
 /// `Prefix` are cheapest and export cleanly to Cloudflare; `Wildcard` and
-/// `Segment` have known export/parity limits (see `tower-http-shield-cloudflare`).
+/// `Segment` have known export/parity limits (see `towershield-cloudflare`).
 ///
 /// # Wildcard patterns
 ///

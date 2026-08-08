@@ -1,11 +1,14 @@
-# tower-http-shield
+# TowerShield
 
-[![CI](https://img.shields.io/github/actions/workflow/status/bnomei/tower-http-shield/ci.yml?branch=main)](https://github.com/bnomei/tower-http-shield/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/tower-http-shield)](https://crates.io/crates/tower-http-shield)
-[![Docs.rs](https://img.shields.io/docsrs/tower-http-shield)](https://docs.rs/tower-http-shield)
-[![License](https://img.shields.io/crates/l/tower-http-shield)](LICENSE)
+[![Crates.io Version](https://img.shields.io/crates/v/towershield)](https://crates.io/crates/towershield)
+[![Docs.rs](https://img.shields.io/docsrs/towershield)](https://docs.rs/towershield)
+[![CI](https://img.shields.io/github/actions/workflow/status/bnomei/towershield/ci.yml?branch=main)](https://github.com/bnomei/towershield/actions/workflows/ci.yml)
+[![Crates.io Downloads](https://img.shields.io/crates/d/towershield)](https://crates.io/crates/towershield)
+[![License](https://img.shields.io/crates/l/towershield)](https://crates.io/crates/towershield)
+[![Discord](https://flat.badgen.net/badge/discord/bnomei?color=7289da&icon=discord&label)](https://discordapp.com/users/bnomei)
+[![Buymecoffee](https://flat.badgen.net/badge/icon/donate?icon=buymeacoffee&color=FF813F&label)](https://www.buymeacoffee.com/bnomei)
 
-`tower-http-shield` is a small, auditable Rust workspace for rejecting
+`towershield` is a small, auditable Rust workspace for rejecting
 high-confidence vulnerability-scanner paths before they reach Axum routes or
 application handlers. It includes a framework-neutral rule engine, a Tower
 middleware layer, and an offline Cloudflare Ruleset Engine exporter.
@@ -17,9 +20,9 @@ firewall (WAF). Use it as one inexpensive layer in a defence-in-depth setup.
 
 | Crate | Purpose | API documentation |
 | --- | --- | --- |
-| [`tower-http-shield`](crates/shield-tower) | Tower `Layer` and `Service` for rejecting matched requests. | [docs.rs](https://docs.rs/tower-http-shield) |
-| [`tower-http-shield-core`](crates/shield-core) | Portable rules, matchers, serialization, and built-in rules. | [docs.rs](https://docs.rs/tower-http-shield-core) |
-| [`tower-http-shield-cloudflare`](crates/shield-cloudflare) | Offline Cloudflare expression and Rulesets API JSON generation. | [docs.rs](https://docs.rs/tower-http-shield-cloudflare) |
+| [`towershield`](crates/shield-tower) | Tower `Layer` and `Service` for rejecting matched requests. | [docs.rs](https://docs.rs/towershield) |
+| [`towershield-core`](crates/shield-core) | Portable rules, matchers, serialization, and built-in rules. | [docs.rs](https://docs.rs/towershield-core) |
+| [`towershield-cloudflare`](crates/shield-cloudflare) | Offline Cloudflare expression and Rulesets API JSON generation. | [docs.rs](https://docs.rs/towershield-cloudflare) |
 
 ## Requirements
 
@@ -35,18 +38,17 @@ Add the Tower middleware to your application:
 
 ```toml
 [dependencies]
-tower-http-shield = "0.1"
+towershield = "0.1"
 ```
 
-Add `tower-http-shield-core` when you want to construct or serialize rules
-directly, and add `tower-http-shield-cloudflare` when you want offline
-Cloudflare output. Their Rust library names remain `shield_core`,
-`shield_tower`, and `shield_cloudflare`:
+Add `towershield-core` when you want to construct or serialize rules directly,
+and add `towershield-cloudflare` when you want offline Cloudflare output. The
+package and Rust library names follow the same `towershield*` family:
 
 ```toml
 [dependencies]
-tower-http-shield-core = "0.1"
-tower-http-shield-cloudflare = "0.1"
+towershield-core = "0.1"
+towershield-cloudflare = "0.1"
 ```
 
 ## Quick start with Axum
@@ -55,7 +57,7 @@ Build the complete router, then wrap it with `Layer::layer`:
 
 ```rust
 use axum::{routing::get, Router};
-use shield_tower::ShieldLayer;
+use towershield::ShieldLayer;
 use tower::Layer;
 
 fn main() {
@@ -77,7 +79,7 @@ working example demonstrates the preferred wrapping and verifies both blocked
 and allowed requests:
 
 ```bash
-cargo run --example axum --package tower-http-shield
+cargo run --example axum --package towershield
 ```
 
 Expected output ends with:
@@ -92,7 +94,7 @@ All assertions passed.
 application-specific deny rule with the builder:
 
 ```rust
-use shield_tower::{PathMatcher, Rule, RuleGroup, ShieldLayer};
+use towershield::{PathMatcher, Rule, RuleGroup, ShieldLayer};
 
 let layer = ShieldLayer::builder()
     .add_rule(Rule::deny(
@@ -108,7 +110,7 @@ Rules are ASCII case-insensitive by default. Opt into case-sensitive matching
 for a custom rule when your router distinguishes path case:
 
 ```rust
-use shield_tower::{CaseSensitivity, PathMatcher, Rule, RuleGroup};
+use towershield::{CaseSensitivity, PathMatcher, Rule, RuleGroup};
 
 let rule = Rule::deny(
     "custom.admin",
@@ -125,7 +127,7 @@ Allow rules take precedence over all deny rules. Use a narrow matcher for a
 legitimate path that would otherwise be blocked:
 
 ```rust
-use shield_tower::{PathMatcher, Rule, RuleGroup, ShieldLayer, DEFAULT_RULES};
+use towershield::{PathMatcher, Rule, RuleGroup, ShieldLayer, DEFAULT_RULES};
 
 let rules = DEFAULT_RULES.get().push(Rule::allow(
     "app.legitimate_path",
@@ -145,7 +147,7 @@ status:
 
 ```rust
 use http::StatusCode;
-use shield_tower::{BlockedResponse, ShieldLayer};
+use towershield::{BlockedResponse, ShieldLayer};
 
 let layer = ShieldLayer::builder()
     .with_blocked_response(BlockedResponse::with_status(StatusCode::FORBIDDEN))
@@ -158,7 +160,7 @@ Register a callback, or use the default `tracing` feature for structured debug
 events:
 
 ```rust
-use shield_tower::ShieldLayer;
+use towershield::ShieldLayer;
 
 let layer = ShieldLayer::builder()
     .on_block(|matched, method, path| {
@@ -173,15 +175,15 @@ bodies to this event.
 
 ## Export rules for Cloudflare
 
-`shield-cloudflare` converts the same deny rules into expressions and a
+`towershield-cloudflare` converts the same deny rules into expressions and a
 Rulesets API-compatible JSON payload. It does not deploy the payload or access
 Cloudflare credentials.
 
 ```rust
-use shield_cloudflare::{
+use towershield_cloudflare::{
     CloudflareExportOptions, CloudflareExporter, CloudflarePlan,
 };
-use shield_core::DEFAULT_RULES;
+use towershield_core::DEFAULT_RULES;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = CloudflareExportOptions::builder()
@@ -198,7 +200,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Review `output.report.diagnostics` before deployment. Cloudflare and Tower do
 not normalize every path in exactly the same way; see the
-[`shield_cloudflare::parity`](https://docs.rs/tower-http-shield-cloudflare/latest/shield_cloudflare/parity/)
+[`towershield_cloudflare::parity`](https://docs.rs/towershield-cloudflare/latest/towershield_cloudflare/parity/)
 module for the compatibility boundaries.
 
 ## Built-in rule groups
@@ -260,15 +262,15 @@ Features are defined per crate:
 
 | Crate | Feature | Default | Purpose |
 | --- | --- | --- | --- |
-| `shield-core` | `serde` | Yes | Serialize and deserialize rules with Serde, JSON, and TOML. |
-| `shield-core` | `regex` | No | Enable `PathMatcher::Regex`. |
-| `shield-core` | `rayon` | No | Enable regex support and parallelize compilation of large regex-heavy custom rule sets. |
-| `shield-tower` | `tracing` | Yes | Emit structured debug events for blocked requests. |
-| `shield-tower` | `regex` | No | Enable `PathMatcher::Regex` through the core crate. |
-| `shield-tower` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
-| `shield-cloudflare` | `serde` | Yes | Serialize Rulesets API output as JSON. |
-| `shield-cloudflare` | `regex` | No | Export regex matchers and enable `shield-core/regex`. |
-| `shield-cloudflare` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
+| `towershield-core` | `serde` | Yes | Serialize and deserialize rules with Serde, JSON, and TOML. |
+| `towershield-core` | `regex` | No | Enable `PathMatcher::Regex`. |
+| `towershield-core` | `rayon` | No | Enable regex support and parallelize compilation of large regex-heavy custom rule sets. |
+| `towershield` | `tracing` | Yes | Emit structured debug events for blocked requests. |
+| `towershield` | `regex` | No | Enable `PathMatcher::Regex` through the core crate. |
+| `towershield` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
+| `towershield-cloudflare` | `serde` | Yes | Serialize Rulesets API output as JSON. |
+| `towershield-cloudflare` | `regex` | No | Export regex matchers and enable `towershield-core/regex`. |
+| `towershield-cloudflare` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
 
 ## Performance model
 
@@ -286,7 +288,7 @@ and ordinary-sized sets remain sequential, and request evaluation is never
 parallelized. This keeps Rayon scheduling and memory overhead away from the
 latency-sensitive request path.
 
-Run `cargo bench -p tower-http-shield-core --bench core_checker` for the core matcher,
+Run `cargo bench -p towershield-core --bench core_checker` for the core matcher,
 including allocation counts and peak live bytes. Benchmark your own custom
 rule set and traffic shape before relying on a latency or throughput target.
 

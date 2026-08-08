@@ -4,7 +4,7 @@
 //! with a host-scope predicate from [`host_scope_expr`]. This module does not
 //! enforce plan limits; packing lives in [`crate::exporter`].
 
-use shield_core::{
+use towershield_core::{
     matcher::{CaseSensitivity, PathMatcher},
     rule::Rule,
 };
@@ -142,7 +142,7 @@ pub fn combine_expressions(fragments: &[String], host_prefix: Option<&str>) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shield_core::{
+    use towershield_core::{
         matcher::{CaseSensitivity, PathMatcher},
         rule::{Rule, RuleGroup},
     };

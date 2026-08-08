@@ -1,8 +1,8 @@
-//! Tower HTTP adapter for the portable path denylist in [`shield_core`].
+//! Tower HTTP adapter for the portable path denylist in [`towershield_core`].
 //!
 //! [`ShieldLayer`] compiles a [`RuleSet`] once and wraps any Tower
 //! [`Service`][tower_service::Service]. On each request it builds an
-//! [`shield_core::InspectionPath`] from `uri.path()`, evaluates the compiled
+//! [`towershield_core::InspectionPath`] from `uri.path()`, evaluates the compiled
 //! rules, and either forwards the request **unchanged** or returns a generic
 //! blocked response without calling the inner service.
 //!
@@ -14,7 +14,7 @@
 //!
 //! ```rust,no_run
 //! use tower::Layer;
-//! use shield_tower::ShieldLayer;
+//! use towershield::ShieldLayer;
 //! // let app = ShieldLayer::default().layer(router);
 //! ```
 //!
@@ -32,7 +32,7 @@
 //!
 //! ```rust,no_run
 //! # use tower::ServiceBuilder;
-//! # use shield_tower::ShieldLayer;
+//! # use towershield::ShieldLayer;
 //! # let router = tower::service_fn(|_: http::Request<()>| async { Ok::<_, std::convert::Infallible>(http::Response::new(())) });
 //! let app = ServiceBuilder::new()
 //!     .layer(ShieldLayer::default())
@@ -40,7 +40,7 @@
 //! ```
 //!
 //! Core rule types are re-exported so application crates can depend only on
-//! `tower-http-shield` for common configuration.
+//! `towershield` for common configuration.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(clippy::all)]
@@ -51,7 +51,7 @@ mod service;
 pub use layer::{BlockedResponse, OnBlock, ShieldBuilder, ShieldLayer};
 pub use service::ShieldService;
 
-pub use shield_core::{
+pub use towershield_core::{
     CaseSensitivity, CompiledRuleSet, DEFAULT_RULES, MatchKind, PathMatcher, Rule, RuleDisposition,
     RuleGroup, RuleId, RuleSchemaVersion, RuleSet, ShieldDecision, ShieldMatch,
 };

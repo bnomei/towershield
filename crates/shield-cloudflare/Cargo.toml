@@ -1,5 +1,5 @@
 [package]
-name = "tower-http-shield-cloudflare"
+name = "towershield-cloudflare"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,22 +8,22 @@ repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
 authors.workspace = true
-documentation = "https://docs.rs/tower-http-shield-cloudflare"
-description = "Offline Cloudflare Ruleset Engine expression exporter for tower-http-shield."
+documentation = "https://docs.rs/towershield-cloudflare"
+description = "Offline Cloudflare Ruleset Engine expression exporter for TowerShield."
 keywords = ["cloudflare", "waf", "security", "shield", "firewall"]
 categories = ["web-programming", "network-programming"]
 
 [lib]
-name = "shield_cloudflare"
+name = "towershield_cloudflare"
 
 [features]
 default = ["serde"]
-serde = ["dep:serde", "dep:serde_json", "shield-core/serde"]
-regex = ["shield-core/regex"]
-rayon = ["shield-core/rayon"]
+serde = ["dep:serde", "dep:serde_json", "towershield-core/serde"]
+regex = ["towershield-core/regex"]
+rayon = ["towershield-core/rayon"]
 
 [dependencies]
-shield-core = { package = "tower-http-shield-core", version = "0.1.0", path = "../shield-core" }
+towershield-core = { version = "0.1.0", path = "../shield-core" }
 thiserror = { workspace = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }

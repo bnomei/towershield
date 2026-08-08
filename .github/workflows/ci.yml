@@ -171,4 +171,4 @@ jobs:
 
       - name: Build publishable package archives
         run: |
-          cargo package -p tower-http-shield-core --locked
+          cargo package -p towershield-core --locked

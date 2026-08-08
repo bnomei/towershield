@@ -754,46 +754,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tower-http-shield"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bytes",
- "http",
- "http-body-util",
- "pin-project",
- "tokio",
- "tower",
- "tower-http-shield-core",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tower-http-shield-cloudflare"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
- "tower-http-shield-core",
-]
-
-[[package]]
-name = "tower-http-shield-core"
-version = "0.1.0"
-dependencies = [
- "divan",
- "rayon",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
- "toml",
-]
-
-[[package]]
 name = "tower-layer"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -804,6 +764,46 @@ name = "tower-service"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
+
+[[package]]
+name = "towershield"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "http",
+ "http-body-util",
+ "pin-project",
+ "tokio",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "towershield-core",
+ "tracing",
+]
+
+[[package]]
+name = "towershield-cloudflare"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "towershield-core",
+]
+
+[[package]]
+name = "towershield-core"
+version = "0.1.0"
+dependencies = [
+ "divan",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+]
 
 [[package]]
 name = "tracing"

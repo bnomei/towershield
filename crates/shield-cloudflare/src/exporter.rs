@@ -3,12 +3,12 @@
 //! [`CloudflareExporter::export`] is the only entry point: deterministic,
 //! side-effect free, and suitable for CI or config-generation pipelines.
 
-use shield_core::{
+use thiserror::Error;
+use towershield_core::{
     matcher::PathMatcher,
     rule::{Rule, RuleDisposition},
     ruleset::RuleSet,
 };
-use thiserror::Error;
 
 use crate::{
     expression::{combine_expressions, compile_rule_expression, host_scope_expr},
@@ -288,7 +288,7 @@ mod tests {
     use super::*;
     use crate::options::CloudflareExportOptions;
     use crate::plan::CloudflarePlan;
-    use shield_core::{CaseSensitivity, DEFAULT_RULES, PathMatcher, Rule, RuleGroup, RuleSet};
+    use towershield_core::{CaseSensitivity, DEFAULT_RULES, PathMatcher, Rule, RuleGroup, RuleSet};
 
     fn opts_with_host(host: &str) -> CloudflareExportOptions {
         CloudflareExportOptions::builder()

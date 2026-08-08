@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `tower-http-shield-core`: portable rule model (`Rule`, `RuleSet`, `PathMatcher`,
+- `towershield-core`: portable rule model (`Rule`, `RuleSet`, `PathMatcher`,
   `CaseSensitivity`, `RuleGroup`, `RuleDisposition`, and `CompiledRuleSet`).
-- `tower-http-shield`: Tower `Layer` and `Service` (`ShieldLayer`, `ShieldService`,
+- `towershield`: Tower `Layer` and `Service` (`ShieldLayer`, `ShieldService`,
   `ShieldBuilder`, and `BlockedResponse`).
-- `tower-http-shield-cloudflare`: offline Cloudflare Ruleset Engine expression exporter
+- `towershield-cloudflare`: offline Cloudflare Ruleset Engine expression exporter
   (`CloudflareExporter`, `CloudflareExportOptions`, `CloudflarePlan`, and
   `CloudflareCapabilities`).
 - 13 built-in rule groups covering secrets, source control, cloud credentials,
@@ -25,15 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   represented safely by the Rules language.
 - Optional Serde, tracing, and regex integrations.
 - Rust 2024 edition support with Rust 1.97 as the minimum supported version.
-- Unique crates.io package names under the `tower-http-shield` namespace while
-  preserving the `shield_core`, `shield_tower`, and `shield_cloudflare` Rust
-  library names.
+- A uniform TowerShield package and library family: `towershield`,
+  `towershield-core`, and `towershield-cloudflare`.
 - CI checks for formatting, default/no-default/all-feature builds, tests,
   Clippy, rustdoc, stable-toolchain compatibility, and package metadata.
 - Current stable releases for all direct dependencies.
 - Data-driven default-rule request fixtures and allocation-aware Divan
   benchmarks for compilation, prepared paths, and mixed request batches.
-- An opt-in `tower-http-shield-core/rayon` feature for compiling custom sets containing
+- An opt-in `towershield-core/rayon` feature for compiling custom sets containing
   at least 256 regex rules in parallel; request evaluation stays sequential.
 - Conservative rules for common Composer/RubyGems/gcloud credential stores,
   IDE metadata, framework configs and backup variants, debug consoles, and

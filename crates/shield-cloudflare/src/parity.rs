@@ -8,7 +8,7 @@
 //!
 //! | Concern | Tower middleware | Cloudflare |
 //! |---|---|---|
-//! | Path field | `http::Uri::path()` + [`shield_core::InspectionPath`] | `http.request.uri.path` (CF-normalised) |
+//! | Path field | `http::Uri::path()` + [`towershield_core::InspectionPath`] | `http.request.uri.path` (CF-normalised) |
 //! | Percent encoding | Single-pass decode in core | Field-dependent CF handling |
 //! | Segment matcher | Exact `/`-delimited segment equality | Approximated as `contains "/seg/"` (FP/FN risk) |
 //! | Wildcard matcher | `*` in-segment; `**` crosses `/` | Skipped — no exact CF encoding |

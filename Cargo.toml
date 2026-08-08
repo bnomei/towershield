@@ -11,10 +11,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
-repository = "https://github.com/bnomei/tower-http-shield"
-homepage = "https://github.com/bnomei/tower-http-shield"
+repository = "https://github.com/bnomei/towershield"
+homepage = "https://github.com/bnomei/towershield"
 readme = "README.md"
-authors = ["tower-http-shield contributors"]
+authors = ["TowerShield contributors"]
 
 [workspace.dependencies]
 # Core

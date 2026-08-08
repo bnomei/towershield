@@ -5,13 +5,13 @@
 //! before Axum route matching. `Router::layer(ShieldLayer…)` is weaker:
 //! unmatched probes never enter the layer.
 //!
-//! Run: `cargo run --example axum --package tower-http-shield`
+//! Run: `cargo run --example axum --package towershield`
 
 use axum::{Router, routing::get};
 use http::StatusCode;
-use shield_tower::ShieldLayer;
 use tower::Layer;
 use tower::ServiceExt;
+use towershield::ShieldLayer;
 
 #[tokio::main]
 async fn main() {

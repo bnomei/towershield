@@ -11,8 +11,8 @@ use std::{
 };
 
 use http::{Request, Response};
-use shield_core::InspectionPath;
 use tower_service::Service;
+use towershield_core::InspectionPath;
 
 use crate::layer::LayerInner;
 
@@ -58,14 +58,14 @@ where
         let decision = self.state.compiled.evaluate(&ip);
 
         match decision {
-            shield_core::ShieldDecision::Allow => {
+            towershield_core::ShieldDecision::Allow => {
                 // End the URI borrow before forwarding the request. No path
                 // copy is needed for the common allow case.
                 drop(ip);
                 let fut = self.inner.call(req);
                 ShieldFuture::Inner(fut)
             }
-            shield_core::ShieldDecision::Block(ref m) => {
+            towershield_core::ShieldDecision::Block(ref m) => {
                 // Server-side only: match metadata + decoded path, never the raw request.
                 if let Some(cb) = &self.state.on_block {
                     cb(m, req.method(), ip.decoded.as_ref());
@@ -131,8 +131,8 @@ mod tests {
     use tower_service::Service;
 
     use crate::ShieldLayer;
-    use shield_core::DEFAULT_RULES;
     use tower::Layer;
+    use towershield_core::DEFAULT_RULES;
 
     fn ok_service() -> impl Service<
         Request<http_body_util::Empty<bytes::Bytes>>,
@@ -229,8 +229,8 @@ mod tests {
 
     #[tokio::test]
     async fn on_block_callback_invoked() {
-        use shield_core::{PathMatcher, Rule, RuleGroup};
         use std::sync::{Arc, Mutex};
+        use towershield_core::{PathMatcher, Rule, RuleGroup};
 
         let saw_block = Arc::new(Mutex::new(false));
         let s = Arc::clone(&saw_block);

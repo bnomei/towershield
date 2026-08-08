@@ -1,5 +1,5 @@
 [package]
-name = "tower-http-shield"
+name = "towershield"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,22 +8,22 @@ repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
 authors.workspace = true
-documentation = "https://docs.rs/tower-http-shield"
-description = "Tower Layer and Service for the tower-http-shield path denylist middleware."
+documentation = "https://docs.rs/towershield"
+description = "Tower Layer and Service for the TowerShield path denylist middleware."
 keywords = ["tower", "middleware", "security", "shield", "axum"]
 categories = ["web-programming", "network-programming"]
 
 [lib]
-name = "shield_tower"
+name = "towershield"
 
 [features]
 default = ["tracing"]
 tracing = ["dep:tracing"]
-regex = ["shield-core/regex"]
-rayon = ["shield-core/rayon"]
+regex = ["towershield-core/regex"]
+rayon = ["towershield-core/rayon"]
 
 [dependencies]
-shield-core = { package = "tower-http-shield-core", version = "0.1.0", path = "../shield-core" }
+towershield-core = { version = "0.1.0", path = "../shield-core" }
 http = { workspace = true }
 tower-layer = { workspace = true }
 tower-service = { workspace = true }

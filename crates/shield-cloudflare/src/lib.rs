@@ -1,6 +1,6 @@
 //! Offline Cloudflare Ruleset Engine exporter for portable shield rules.
 //!
-//! Turns a [`shield_core::RuleSet`] into Cloudflare expression text, a
+//! Turns a [`towershield_core::RuleSet`] into Cloudflare expression text, a
 //! Rulesets API-shaped JSON payload, and a human-readable
 //! [`ExportReport`]. Export is pure CPU: no network, credentials, zone IDs,
 //! Terraform, or live deploy side effects.

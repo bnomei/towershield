@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use shield_core::{DEFAULT_RULES, InspectionPath, ShieldDecision};
+use towershield_core::{DEFAULT_RULES, InspectionPath, ShieldDecision};
 
 const CASES: &str = include_str!("fixtures/default_paths.tsv");
 
