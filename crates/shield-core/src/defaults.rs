@@ -135,6 +135,18 @@ fn build_default_rules() -> RuleSet {
             exact!("/.yarnrc")
         ),
         deny!(
+            "secrets.yarnrc_yml",
+            RuleGroup::Secrets,
+            "Block modern Yarn configuration and credentials",
+            exact!("/.yarnrc.yml")
+        ),
+        deny!(
+            "secrets.bunfig",
+            RuleGroup::Secrets,
+            "Block Bun configuration and registry credentials",
+            exact!("/bunfig.toml")
+        ),
+        deny!(
             "secrets.pypirc",
             RuleGroup::Secrets,
             "Block .pypirc",
@@ -1259,7 +1271,7 @@ fn build_default_rules() -> RuleSet {
             "regex.secrets_nested",
             RuleGroup::Secrets,
             "Block nested secret dotfiles and environment variants",
-            regex!(r"(?:^|/)\.(?:env(?:\.[A-Za-z0-9._-]+)?|npmrc|yarnrc|pypirc|netrc|pgpass|htpasswd|git-credentials)$")
+            regex!(r"(?:^|/)(?:\.(?:env(?:\.[A-Za-z0-9._-]+)?|npmrc|yarnrc(?:\.yml)?|pypirc|netrc|pgpass|htpasswd|git-credentials)|bunfig\.toml)$")
         ),
         deny!(
             "regex.source_control_nested",
@@ -1319,7 +1331,7 @@ fn build_default_rules() -> RuleSet {
             "regex.joomla_nested",
             RuleGroup::Joomla,
             "Block Joomla probes under nested installations",
-            regex!(r"(?:^|/)(?:administrator|installation)(?:/|$)")
+            regex!(r"(?:^|/)(?:administrator/(?:index\.php|manifests/files/joomla\.xml)|installation/(?:index\.php|configuration\.php-dist))$")
         ),
         deny!(
             "regex.drupal_nested",
@@ -1331,7 +1343,7 @@ fn build_default_rules() -> RuleSet {
             "regex.magento_nested",
             RuleGroup::Magento,
             "Block Magento probes under nested installations",
-            regex!(r"(?:^|/)(?:downloader|shell|var/export)(?:/|$)")
+            regex!(r"(?:^|/)(?:(?:downloader|shell)/index\.php|var/export/[A-Za-z0-9._-]+)$")
         ),
         deny!(
             "regex.php_shell_nested",
@@ -1518,8 +1530,12 @@ mod tests {
         assert!(blocked(&rs, "/legacy/bun.lockb"));
         assert!(blocked(&rs, "/frontend/vite.config.ts"));
         assert!(blocked(&rs, "/blog/wp-login.php"));
+        assert!(blocked(&rs, "/cms/administrator/index.php"));
+        assert!(blocked(&rs, "/shop/downloader/index.php"));
         assert!(blocked(&rs, "/public/c99.php"));
         assert!(blocked(&rs, "/workspace/.cursor/mcp.json"));
+        assert!(blocked(&rs, "/frontend/.yarnrc.yml"));
+        assert!(blocked(&rs, "/frontend/bunfig.toml"));
     }
 
     #[cfg(not(feature = "regex"))]
@@ -1531,12 +1547,16 @@ mod tests {
         assert!(blocked(&rs, "/bun.lock"));
         assert!(blocked(&rs, "/bun.lockb"));
         assert!(blocked(&rs, "/wp-login.php"));
+        assert!(blocked(&rs, "/.yarnrc.yml"));
+        assert!(blocked(&rs, "/bunfig.toml"));
 
         assert!(allowed(&rs, "/app/.env.staging"));
         assert!(allowed(&rs, "/frontend/package-lock.json"));
         assert!(allowed(&rs, "/frontend/bun.lock"));
         assert!(allowed(&rs, "/legacy/bun.lockb"));
         assert!(allowed(&rs, "/blog/wp-login.php"));
+        assert!(allowed(&rs, "/frontend/.yarnrc.yml"));
+        assert!(allowed(&rs, "/frontend/bunfig.toml"));
     }
 
     #[test]
@@ -1609,6 +1629,10 @@ mod tests {
         assert!(allowed(&rs, "/health"));
         assert!(allowed(&rs, "/dashboard"));
         assert!(allowed(&rs, "/config"));
+        assert!(allowed(&rs, "/docs/installation/guide"));
+        assert!(allowed(&rs, "/users/administrator/profile"));
+        assert!(allowed(&rs, "/tools/shell/docs"));
+        assert!(allowed(&rs, "/downloads/downloader/guide"));
         assert!(allowed(&rs, "/"));
     }
 }

@@ -23,7 +23,7 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -48,7 +48,7 @@ jobs:
           - name: all-features
             args: "--all-features"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -62,6 +62,12 @@ jobs:
 
       - name: Run cargo check
         run: cargo check --workspace --all-targets --locked ${{ matrix.features.args }}
+
+      - name: Check independently enabled adapter features
+        if: matrix.features.name == 'default'
+        run: |
+          cargo check -p towershield --no-default-features --features rayon --locked
+          cargo check -p towershield-cloudflare --no-default-features --features rayon --locked
 
   test:
     name: Test (${{ matrix.features.name }})
@@ -78,7 +84,7 @@ jobs:
           - name: all-features
             args: "--all-features"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -100,7 +106,7 @@ jobs:
     needs: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -122,7 +128,7 @@ jobs:
     needs: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -144,7 +150,7 @@ jobs:
     needs: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust 1.97
         uses: dtolnay/rust-toolchain@master
@@ -166,7 +172,7 @@ jobs:
     needs: [check, test, clippy, docs]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -174,3 +180,4 @@ jobs:
       - name: Build publishable package archives
         run: |
           cargo package -p towershield-core --locked
+          cargo package --workspace --no-verify --locked

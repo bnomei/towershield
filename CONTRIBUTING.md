@@ -58,10 +58,12 @@ bytes, and maximum live bytes for representative request batches.
 1. Move the relevant `Unreleased` entries to a versioned heading with an ISO
    date.
 2. Update the shared workspace version and internal dependency requirements.
-3. Run all local checks and fully package the core crate:
+3. Run all local checks, fully verify the core crate, and assemble all three
+   workspace archives together so unpublished internal versions resolve:
 
    ```bash
    cargo package -p towershield-core --locked
+   cargo package --workspace --no-verify --locked
    ```
 4. Publish `towershield-core` before packaging and publishing the dependent
    `towershield` and `towershield-cloudflare` crates.

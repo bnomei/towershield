@@ -29,6 +29,8 @@ block	/Trace.axd
 block	/.codex/auth.json
 block	/.claude/settings.json
 block	/.cursor/mcp.json
+block	/.yarnrc.yml
+block	/bunfig.toml
 block	/package.json
 block	/package-lock.json
 block	/npm-shrinkwrap.json
@@ -54,6 +56,10 @@ allow	/api
 allow	/api/v1/users/42
 allow	/assets/application.css
 allow	/config
+allow	/docs/installation/guide
+allow	/users/administrator/profile
+allow	/tools/shell/docs
+allow	/downloads/downloader/guide
 allow	/dashboard
 allow	/docs
 allow	/graphql

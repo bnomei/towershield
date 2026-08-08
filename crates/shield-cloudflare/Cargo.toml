@@ -22,7 +22,7 @@ name = "towershield_cloudflare"
 default = ["serde", "regex"]
 serde = ["dep:serde", "dep:serde_json", "towershield-core/serde"]
 regex = ["towershield-core/regex"]
-rayon = ["towershield-core/rayon"]
+rayon = ["regex", "towershield-core/rayon"]
 
 [dependencies]
 towershield-core = { version = "0.1.1", path = "../shield-core", default-features = false }

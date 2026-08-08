@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Yarn, pnpm, and Bun lockfiles; Next.js build and development endpoints; Vite
   development endpoints; and common Next.js, Vite, webpack, and Babel
   configuration files.
+- Rules for credential-bearing modern Yarn (`.yarnrc.yml`) and Bun
+  (`bunfig.toml`) package-manager configuration.
 - A default-on regex expansion tier with 16 broader rules for nested sensitive
   files, JavaScript configs, CMS installations, debug paths, and related probe
   families.
@@ -39,6 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented React, Next.js, and Vite coverage, production-path exclusions,
   path-only protection limits, and how to disable regex along with the coverage
   that removes.
+
+### Fixed
+
+- Tightened nested Joomla and Magento regex rules to avoid blocking generic
+  application routes containing `administrator`, `installation`, `shell`, or
+  `downloader` segments.
+- Made the adapter `rayon` features imply their local `regex` features so each
+  advertised feature compiles independently.
 
 ## [0.1.0] - 2026-08-08
 

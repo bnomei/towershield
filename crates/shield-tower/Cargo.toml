@@ -22,7 +22,7 @@ name = "towershield"
 default = ["tracing", "regex"]
 tracing = ["dep:tracing"]
 regex = ["towershield-core/regex"]
-rayon = ["towershield-core/rayon"]
+rayon = ["regex", "towershield-core/rayon"]
 
 [dependencies]
 towershield-core = { version = "0.1.1", path = "../shield-core", default-features = false }
