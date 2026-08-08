@@ -1,0 +1,33 @@
+[package]
+name = "shield-tower"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tower Layer and Service for the tower-http-shield path denylist middleware."
+keywords = ["tower", "middleware", "security", "shield", "axum"]
+categories = ["web-programming", "network-programming"]
+
+[features]
+default = ["tracing"]
+tracing = ["dep:tracing"]
+axum = ["dep:axum"]
+
+[dependencies]
+shield-core = { path = "../shield-core" }
+http = { workspace = true }
+tower-layer = { workspace = true }
+tower-service = { workspace = true }
+http-body = "1"
+http-body-util = "0.1"
+tracing = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+pin-project = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net"] }
+tower = { workspace = true }
+axum = { version = "0.7", features = ["tokio"] }
+http-body-util = "0.1"
+bytes = "1"

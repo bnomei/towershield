@@ -1,0 +1,43 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/shield-core",
+    "crates/shield-tower",
+    "crates/shield-cloudflare",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bnomei/tower-http-shield"
+documentation = "https://docs.rs/tower-http-shield"
+authors = ["tower-http-shield contributors"]
+
+[workspace.dependencies]
+# Core
+http = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+thiserror = "1"
+regex = { version = "1", default-features = false, features = ["std"] }
+
+# Tower / Axum
+tower-layer = "0.3"
+tower-service = "0.3"
+tower = { version = "0.4", features = ["util"], default-features = false }
+axum = { version = "0.7", default-features = false }
+
+# Observability
+tracing = { version = "0.1", default-features = false }
+
+# Dev / test
+tokio = { version = "1", features = ["macros", "rt"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = "debuginfo"
