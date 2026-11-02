@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-02
+
+### Changed
+
+- Updated Tokio from 1.53.1 to 1.54.1, outside the affected range of
+  [RUSTSEC-2026-0386](https://rustsec.org/advisories/RUSTSEC-2026-0386.html)
+  (`AsyncFd` constructor I/O-safety unsoundness). Tokio is a dev dependency;
+  TowerShield does not call the affected constructors.
+- Updated direct dependency requirements for serde_json (1.0.154), thiserror
+  (2.0.21), and http-body-util (0.1.5), and refreshed compatible transitive
+  minor/patch versions. Axum's exact matchit 0.8.4 constraint is unchanged.
+- Removed unused TOML dependencies and core's runtime serde_json dependency;
+  core keeps serde_json only for tests. Its `serde` feature still implements
+  serialization traits, while applications supply their chosen serializer.
+  Cloudflare retains serde_json for `to_json()` and no longer duplicates it
+  as a dev dependency.
+- Reduced registry packages in the workspace lockfile from 90 to 80. The
+  refreshed lockfile passes `cargo audit --deny warnings`, and `cargo machete`
+  reports no unused dependencies as of 2026-11-02.
+
 ## [0.1.2] - 2026-11-02
 
 ### Added
@@ -149,7 +169,8 @@ follows:
 Applications that are concerned about unexpected blocking from new rules
 should pin an exact version and review rule changes before upgrading.
 
-[Unreleased]: https://github.com/bnomei/towershield/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/bnomei/towershield/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/bnomei/towershield/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/bnomei/towershield/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/bnomei/towershield/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/bnomei/towershield/releases/tag/v0.1.0

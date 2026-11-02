@@ -307,7 +307,7 @@ Features are defined per crate:
 
 | Crate | Feature | Default | Purpose |
 | --- | --- | --- | --- |
-| `towershield-core` | `serde` | Yes | Serialize and deserialize rules with Serde, JSON, and TOML. |
+| `towershield-core` | `serde` | Yes | Implement Serde traits for rules; applications choose their JSON, TOML, or other serializer. |
 | `towershield-core` | `regex` | Yes | Enable regex matchers and 16 broader built-in rules. |
 | `towershield-core` | `rayon` | No | Enable regex support and parallelize compilation of large regex-heavy custom rule sets. |
 | `towershield` | `tracing` | Yes | Emit structured debug events for blocked requests. |
@@ -316,6 +316,10 @@ Features are defined per crate:
 | `towershield-cloudflare` | `serde` | Yes | Serialize Rulesets API output as JSON. |
 | `towershield-cloudflare` | `regex` | Yes | Export regex matchers and include the broader built-in rule tier. |
 | `towershield-cloudflare` | `rayon` | No | Forward the core crate's opt-in parallel compilation. |
+
+The core `serde` feature does not depend on `serde_json` or `toml`. Add the
+serializer your application uses directly. The Cloudflare crate retains
+`serde_json` for its `to_json()` API.
 
 ### Disabling regex
 

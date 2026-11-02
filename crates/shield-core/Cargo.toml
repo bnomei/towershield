@@ -20,22 +20,19 @@ name = "towershield_core"
 
 [features]
 default = ["serde", "regex"]
-serde = ["dep:serde", "dep:serde_json", "dep:toml"]
+serde = ["dep:serde"]
 regex = ["dep:regex"]
 rayon = ["dep:rayon", "regex"]
 
 [dependencies]
 thiserror = { workspace = true }
 serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
-toml = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 
 [dev-dependencies]
 divan = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
 
 [[bench]]
 name = "core_checker"
