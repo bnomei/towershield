@@ -25,7 +25,7 @@ regex = ["towershield-core/regex"]
 rayon = ["regex", "towershield-core/rayon"]
 
 [dependencies]
-towershield-core = { version = "0.1.1", path = "../shield-core", default-features = false }
+towershield-core = { version = "0.1.2", path = "../shield-core", default-features = false }
 http = { workspace = true }
 tower-layer = { workspace = true }
 tower-service = { workspace = true }

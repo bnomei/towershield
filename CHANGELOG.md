@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-02
+
+### Added
+
+- 21 evidence-backed built-in rules for credential stores, SMTP secrets,
+  directory metadata, PHP per-directory configuration, exposed PHPUnit and
+  Laravel Ignition execution paths, and the plural Next.js stack-frame endpoint.
+  All additions work without regex; directory-qualified suffix rules also cover
+  nested copies without blocking generic configuration filenames.
+- Cloudflare export diagnostics for enabled allow rules that are not exported,
+  warning that Tower exclusions cannot override an edge block.
+- Rule provenance, deployment-specific candidates, and a repeatable advisory
+  review process in the security policy, with false-positive fixture coverage.
+
+### Documentation
+
+- Corrected the React Server Components advisory reference to CVE-2025-55182
+  and documented why path rules do not address Vite WebSocket file reads.
+
 ## [0.1.1] - 2026-08-08
 
 ### Added
@@ -130,6 +149,7 @@ follows:
 Applications that are concerned about unexpected blocking from new rules
 should pin an exact version and review rule changes before upgrading.
 
-[Unreleased]: https://github.com/bnomei/towershield/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/bnomei/towershield/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/bnomei/towershield/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/bnomei/towershield/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/bnomei/towershield/releases/tag/v0.1.0

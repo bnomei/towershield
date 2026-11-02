@@ -243,6 +243,62 @@ fn build_default_rules() -> RuleSet {
             "Block config/secrets.yml",
             exact!("/config/secrets.yml")
         ),
+        // Directory-qualified suffixes cover copied home directories without
+        // denying unrelated config files or requiring the regex feature.
+        deny!(
+            "secrets.cargo_credentials",
+            RuleGroup::Secrets,
+            "Block legacy Cargo registry credentials at any depth",
+            suffix!("/.cargo/credentials")
+        ),
+        deny!(
+            "secrets.cargo_credentials_toml",
+            RuleGroup::Secrets,
+            "Block Cargo registry credentials at any depth",
+            suffix!("/.cargo/credentials.toml")
+        ),
+        deny!(
+            "secrets.uv_credentials",
+            RuleGroup::Secrets,
+            "Block uv plaintext credentials at any depth",
+            suffix!("/.local/share/uv/credentials/credentials.toml")
+        ),
+        deny!(
+            "secrets.poetry_auth",
+            RuleGroup::Secrets,
+            "Block Poetry plaintext authentication at any depth",
+            suffix!("/.config/pypoetry/auth.toml")
+        ),
+        deny!(
+            "secrets.github_cli_hosts",
+            RuleGroup::Secrets,
+            "Block GitHub CLI host credentials at any depth",
+            suffix!("/.config/gh/hosts.yml")
+        ),
+        deny!(
+            "secrets.gitlab_runner_user",
+            RuleGroup::Secrets,
+            "Block user GitLab Runner tokens and configuration at any depth",
+            suffix!("/.gitlab-runner/config.toml")
+        ),
+        deny!(
+            "secrets.gitlab_runner_system",
+            RuleGroup::Secrets,
+            "Block system GitLab Runner tokens and configuration at any depth",
+            suffix!("/etc/gitlab-runner/config.toml")
+        ),
+        deny!(
+            "secrets.smtp_keys",
+            RuleGroup::Secrets,
+            "Block probed SMTP key files at any depth",
+            suffix!("/smtp_keys.json")
+        ),
+        deny!(
+            "secrets.smtp_tokens",
+            RuleGroup::Secrets,
+            "Block probed SMTP token files at any depth",
+            suffix!("/smtp_tokens.json")
+        ),
         // ── Group 2: Source-control metadata ────────────────────────────────
         deny!(
             "scm.git_prefix",
@@ -353,6 +409,24 @@ fn build_default_rules() -> RuleSet {
             "Block service-account credentials JSON",
             exact!("/service-account-credentials.json")
         ),
+        deny!(
+            "cloud.application_default_credentials",
+            RuleGroup::CloudCredentials,
+            "Block Google application default credentials at any depth",
+            suffix!("/application_default_credentials.json")
+        ),
+        deny!(
+            "cloud.terraform_credentials",
+            RuleGroup::CloudCredentials,
+            "Block Terraform CLI API tokens at any depth",
+            suffix!("/.terraform.d/credentials.tfrc.json")
+        ),
+        deny!(
+            "cloud.kube_config",
+            RuleGroup::CloudCredentials,
+            "Block Kubernetes cluster access configuration at any depth",
+            suffix!("/.kube/config")
+        ),
         // ── Group 4: SSH keys ────────────────────────────────────────────────
         deny!(
             "ssh.ssh_prefix",
@@ -427,6 +501,12 @@ fn build_default_rules() -> RuleSet {
             exact!("/known_hosts")
         ),
         // ── Group 5: Build and deployment manifests ──────────────────────────
+        deny!(
+            "build.ds_store",
+            RuleGroup::BuildManifests,
+            "Block macOS directory metadata at any depth",
+            suffix!("/.DS_Store")
+        ),
         deny!(
             "build.dockerfile",
             RuleGroup::BuildManifests,
@@ -506,6 +586,12 @@ fn build_default_rules() -> RuleSet {
             prefix!("/.vscode-server/")
         ),
         // ── Group 6: Framework configuration ────────────────────────────────
+        deny!(
+            "fw.php_user_ini",
+            RuleGroup::FrameworkConfig,
+            "Block PHP per-directory configuration at any depth",
+            suffix!("/.user.ini")
+        ),
         deny!(
             "fw.rails_master_key",
             RuleGroup::FrameworkConfig,
@@ -814,6 +900,12 @@ fn build_default_rules() -> RuleSet {
             exact!("/_next/mcp")
         ),
         deny!(
+            "js.next_original_stack_frames",
+            RuleGroup::JavaScript,
+            "Block Next.js batched development stack-frame endpoint",
+            exact!("/__nextjs_original-stack-frames")
+        ),
+        deny!(
             "js.vite_config_js",
             RuleGroup::JavaScript,
             "Block Vite JavaScript configuration",
@@ -1085,6 +1177,18 @@ fn build_default_rules() -> RuleSet {
         ),
         // ── Group 13: Debug, profiler, actuator, server-status ────────────────
         deny!(
+            "debug.phpunit_eval_stdin",
+            RuleGroup::Debug,
+            "Block exposed PHPUnit eval-stdin execution scripts at any depth",
+            suffix!("/eval-stdin.php")
+        ),
+        deny!(
+            "debug.ignition_execute_solution",
+            RuleGroup::Debug,
+            "Block Laravel Ignition solution execution endpoint",
+            exact!("/_ignition/execute-solution")
+        ),
+        deny!(
             "debug.phpinfo_path",
             RuleGroup::Debug,
             "Block phpinfo.php at root",
@@ -1264,6 +1368,30 @@ fn build_default_rules() -> RuleSet {
             RuleGroup::AiTools,
             "Block Claude credentials and config",
             prefix!("/.claude/")
+        ),
+        deny!(
+            "ai.gemini_oauth",
+            RuleGroup::AiTools,
+            "Block Gemini OAuth credentials at any depth",
+            suffix!("/.gemini/oauth_creds.json")
+        ),
+        deny!(
+            "ai.gemini_mcp_oauth",
+            RuleGroup::AiTools,
+            "Block Gemini MCP OAuth tokens at any depth",
+            suffix!("/.gemini/mcp-oauth-tokens.json")
+        ),
+        deny!(
+            "ai.gemini_settings",
+            RuleGroup::AiTools,
+            "Block Gemini settings that may contain MCP secrets at any depth",
+            suffix!("/.gemini/settings.json")
+        ),
+        deny!(
+            "ai.windsurf_mcp",
+            RuleGroup::AiTools,
+            "Block Windsurf MCP configuration at any depth",
+            suffix!("/.codeium/windsurf/mcp_config.json")
         ),
     ];
 

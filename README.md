@@ -203,6 +203,11 @@ not normalize every path in exactly the same way; see the
 [`towershield_cloudflare::parity`](https://docs.rs/towershield-cloudflare/latest/towershield_cloudflare/parity/)
 module for the compatibility boundaries.
 
+Enabled allow rules produce export warnings: they are **not** Cloudflare
+exclusions. Remove conflicting deny rules from the exported set or configure
+equivalent edge exclusions before deploying it; a Tower allow cannot undo an
+edge block.
+
 ## Built-in rule groups
 
 The default rules cover 14 categories of high-confidence scanner probes:
@@ -229,6 +234,17 @@ developer-tool files, or deliberately exposed Next.js/Vite development
 endpoints should review the built-ins and add precise allow rules before
 enabling the middleware. Normal production assets such as `/_next/static`,
 `/_next/image`, JavaScript bundles, and `/manifest.json` remain allowed.
+
+Additional credential-file rules cover Cargo, uv, Poetry, GitHub CLI, GitLab
+Runner, Terraform CLI, Kubernetes, Google application default credentials,
+Gemini CLI, and Windsurf. These use slash-bounded, directory-qualified suffixes
+(or distinctive secret filenames), so copied home directories are covered even
+without regex. They do not block every `config.toml`, `settings.json`, or AI
+documentation file. PHPUnit `eval-stdin.php`, Laravel's
+`/_ignition/execute-solution`, Next.js's plural
+`/__nextjs_original-stack-frames`, `.user.ini`, `.DS_Store`, and SMTP key/token
+files are also denied. See [rule evidence and review policy](SECURITY.md#rule-evidence-and-review)
+for sources and scope.
 
 ## Agent-ready protocol compatibility
 
@@ -280,7 +296,10 @@ they are not substitutes for framework updates. In particular, path-only
 filtering cannot mitigate Next.js middleware-header bypasses such as
 [CVE-2025-29927](https://github.com/vercel/next.js/security/advisories/GHSA-f82v-jwr5-mffw)
 or attacker-controlled React Server Components protocol payloads such as
-[CVE-2025-66478](https://nextjs.org/blog/CVE-2025-66478).
+[CVE-2025-55182](https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components).
+Likewise, Vite's [WebSocket `fetchModule` file-read vulnerability](https://github.com/vitejs/vite/security/advisories/GHSA-p9ff-h696-f583)
+requires patching and restricting development-server access; denying `/@fs/`
+does not inspect WebSocket messages.
 
 ## Cargo features
 

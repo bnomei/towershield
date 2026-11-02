@@ -2,8 +2,8 @@
 //!
 //! [`CloudflareExporter::export`] is the only entry point: deterministic,
 //! side-effect free, and suitable for CI or config-generation pipelines.
-//! Allow rules are ignored here (Tower-side exclusions only); disabled rules
-//! appear in the report but do not produce fragments. Host scope is
+//! Allow rules are skipped with a diagnostic (Tower-side exclusions only).
+//! Disabled rules appear in the report but do not produce fragments. Host scope is
 //! fail-closed: empty hostnames without [`crate::HostScope::AllHosts`]
 //! yield [`ExportError::MissingHostScope`].
 
@@ -108,6 +108,14 @@ impl CloudflareExporter {
         for r in &ruleset.rules {
             if !r.enabled {
                 disabled.push(r.id.0.clone());
+            } else if r.disposition == RuleDisposition::Allow {
+                diagnostics.push(ExportDiagnostic {
+                    rule_id: r.id.0.clone(),
+                    message: "Allow rule is not exported. Cloudflare may block requests that Tower explicitly allows.".into(),
+                    suggestion: Some(
+                        "Remove conflicting deny rules from the export or configure equivalent exclusions at the edge before deployment.".into(),
+                    ),
+                });
             }
         }
 
@@ -318,12 +326,38 @@ mod tests {
     #[test]
     fn export_produces_output() {
         let rs = DEFAULT_RULES.get();
-        let opts = opts_with_host("example.com");
-        let out = CloudflareExporter::export(&rs, &opts).unwrap();
-        assert!(!out.expression.is_empty());
-        assert!(!out.api_ruleset.rules.is_empty());
-        assert!(out.expression.contains("example.com"));
-        assert_eq!(out.api_ruleset.phase, "http_request_firewall_custom");
+        for plan in [
+            CloudflarePlan::Free,
+            CloudflarePlan::Pro,
+            CloudflarePlan::Business,
+            CloudflarePlan::Enterprise,
+        ] {
+            let opts = CloudflareExportOptions::builder()
+                .hostnames(["example.com"])
+                .plan(plan)
+                .build();
+            let out = CloudflareExporter::export(&rs, &opts).unwrap();
+            assert!(!out.expression.is_empty());
+            assert!(!out.api_ruleset.rules.is_empty());
+            assert!(out.expression.contains("example.com"));
+            assert_eq!(out.api_ruleset.phase, "http_request_firewall_custom");
+            assert!(out.api_ruleset.rules.len() <= opts.capabilities.maximum_rules);
+            for rule in &out.api_ruleset.rules {
+                assert!(rule.expression.len() <= opts.capabilities.maximum_expression_length);
+            }
+            assert!(
+                out.report
+                    .included_rule_ids
+                    .iter()
+                    .any(|id| id == "secrets.cargo_credentials_toml")
+            );
+            assert!(
+                out.report
+                    .included_rule_ids
+                    .iter()
+                    .any(|id| id == "debug.phpunit_eval_stdin")
+            );
+        }
     }
 
     #[test]
@@ -379,6 +413,39 @@ mod tests {
                 .contains(r#"http.request.uri.path eq "/Admin""#)
         );
         assert!(!out.expression.contains("lower(http.request.uri.path)"));
+    }
+
+    #[test]
+    fn allow_exclusions_are_reported_but_not_exported() {
+        let mut disabled = Rule::allow(
+            "test.disabled_allow",
+            RuleGroup::Debug,
+            "inactive exception",
+            PathMatcher::Exact("/dev/inactive".into()),
+        );
+        disabled.enabled = false;
+        let rs = RuleSet::new()
+            .push(Rule::deny(
+                "test.deny",
+                RuleGroup::Debug,
+                "deny development routes",
+                PathMatcher::Prefix("/dev/".into()),
+            ))
+            .push(Rule::allow(
+                "test.allow",
+                RuleGroup::Debug,
+                "legitimate exception",
+                PathMatcher::Exact("/dev/public".into()),
+            ))
+            .push(disabled);
+        let out = CloudflareExporter::export(&rs, &opts_with_host("example.com")).unwrap();
+
+        assert_eq!(out.report.included_rule_ids, ["test.deny"]);
+        assert_eq!(out.report.disabled_rule_ids, ["test.disabled_allow"]);
+        assert_eq!(out.report.diagnostics.len(), 1);
+        assert_eq!(out.report.diagnostics[0].rule_id, "test.allow");
+        assert!(out.report.diagnostics[0].message.contains("not exported"));
+        assert!(!out.expression.contains("/dev/public"));
     }
 
     #[test]
